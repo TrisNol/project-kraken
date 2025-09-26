@@ -1,0 +1,54 @@
+# Configuration for Central Knowledge Base
+
+# Confluence Configuration
+confluence:
+  enabled: true
+  base_url: "${CONFLUENCE_BASE_URL}"  # e.g., https://yourcompany.atlassian.net
+  username: "${CONFLUENCE_USERNAME}"
+  api_token: "${CONFLUENCE_API_TOKEN}"
+  spaces:
+    - "PROJ"  # Add your space keys here
+    - "DOCS"
+
+# Jira Configuration  
+jira:
+  enabled: true
+  base_url: "${JIRA_BASE_URL}"  # e.g., https://yourcompany.atlassian.net
+  username: "${JIRA_USERNAME}"
+  api_token: "${JIRA_API_TOKEN}"
+  projects:
+    - "PROJ"  # Add your project keys here
+    - "DEV"
+
+# Git Configuration
+git:
+  enabled: true
+  access_token: "${GITHUB_ACCESS_TOKEN}"  # Optional for public repos
+  repositories:
+    - "https://github.com/yourorg/repo1"
+    - "https://github.com/yourorg/repo2"
+
+# LLM Configuration
+llm:
+  provider: "openai"
+  model: "gpt-3.5-turbo"
+  api_key: "${OPENAI_API_KEY}"
+  temperature: 0.1
+  max_tokens: 1000
+
+# Vector Store Configuration
+vector_store:
+  provider: "chroma"
+  persist_directory: "./data/vectorstore"
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+
+# Knowledge Graph Configuration
+graph:
+  persist_directory: "./data/graph"
+  similarity_threshold: 0.7
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
