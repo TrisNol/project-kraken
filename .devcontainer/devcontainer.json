@@ -7,6 +7,7 @@
             "extensions": [
                 "ms-python.python",
                 "ms-python.isort",
+                "ms-python.vscode-pylance",
                 "ms-python.black-formatter",
                 "njpwerner.autodocstring",
                 "bierner.markdown-mermaid",
