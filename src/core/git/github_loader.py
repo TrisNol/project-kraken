@@ -1,4 +1,5 @@
 import tempfile
+from datetime import datetime
 
 from pathlib import Path
 from typing import Optional
@@ -43,10 +44,10 @@ class GitHubLoader:
                     metadata = GitHubMetadata(
                         source=repo,
                         type=DocumentSourceType.GITHUB,
-                        last_updated="",  # Placeholder, Git history parsing can be added
+                        last_updated=Repo(temp_dir).git.log('-1', '--format=%ai', '--', str(file_path)).strip(),  # Last commit date for the file
                         repo_name=repo_name,
                         file_path=str(relative_path),
-                        commit_hash="",  # Placeholder, Git history parsing can be added
+                        commit_hash=Repo(temp_dir).head.object.hexsha,  # Latest commit hash
                         ref=self.ref or "",
                     )
                     documents.append(Document(content=content, meta=metadata.model_dump()))
