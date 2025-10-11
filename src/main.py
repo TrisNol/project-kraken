@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
-from haystack.document_stores.in_memory import InMemoryDocumentStore
+from neo4j_haystack import Neo4jDocumentStore, Neo4jEmbeddingRetriever
 
 from src.common.models import ResponseModel
 from src.core.knowledge_index import KnowledgeIndex
@@ -45,11 +45,22 @@ async def lifespan(app: FastAPI):
         token=os.getenv("GITHUB_TOKEN"),
     )
     # Init RAG pipeline
-    in_memory_document_store = InMemoryDocumentStore(
-        embedding_similarity_function="cosine"
+    neo4j_document_store = Neo4jDocumentStore(
+        url=os.getenv("NEO4J_URL"),
+        username=os.getenv("NEO4J_USERNAME"),
+        password=os.getenv("NEO4J_PASSWORD"),
+        database="neo4j",
+        embedding_dim=768,
+        embedding_field="embedding",
+        index="document_embeddings", # The name of the Vector Index in Neo4j
+        node_label="Document",
     )
-    pipelines["rag"] = QuestionAnswering(document_store=in_memory_document_store)
-    pipelines["index"] = KnowledgeIndex(document_store=in_memory_document_store)
+    neo4j_embedding_retriever = Neo4jEmbeddingRetriever(
+        document_store=neo4j_document_store,
+        top_k=5,
+    )
+    pipelines["rag"] = QuestionAnswering(embedding_retriever=neo4j_embedding_retriever)
+    pipelines["index"] = KnowledgeIndex(document_store=neo4j_document_store)
     yield
     # Clean up before shutdown
     pipelines.clear()

@@ -2,12 +2,10 @@ import os
 from dotenv import load_dotenv
 
 from haystack import Pipeline
-from haystack.document_stores.types import DocumentStore
 from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
 from haystack_integrations.components.generators.ollama import OllamaChatGenerator
-from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 
 from src.common.models import BaseMetadata, ConfluenceMetadata, JiraMetadata, GitHubMetadata, ResponseModel
 
@@ -17,7 +15,7 @@ load_dotenv()
 class QuestionAnswering:
     rag_pipeline: Pipeline = None
 
-    def __init__(self, document_store: DocumentStore):
+    def __init__(self, embedding_retriever):
         template = [
             ChatMessage.from_user(
                 """
@@ -41,7 +39,8 @@ class QuestionAnswering:
             model=os.getenv("LLM_EMBEDDING_MODEL"),
             url=os.getenv("LLM_HOST"),
         )
-        retriever = InMemoryEmbeddingRetriever(document_store)
+
+        retriever = embedding_retriever
 
         prompt_builder = ChatPromptBuilder(
             template=template, required_variables={"documents", "question"}
@@ -62,8 +61,6 @@ class QuestionAnswering:
 
         self.rag_pipeline = basic_rag_pipeline
 
-        print(basic_rag_pipeline.graph)
-
     def answer_question(self, question: str) -> ResponseModel:
         response = self.rag_pipeline.run(
             {
@@ -72,7 +69,6 @@ class QuestionAnswering:
             },
             include_outputs_from=["llm", "retriever"],
         )
-        print(response)
         response_text = response.get("llm", {}).get("replies")[0].text
         return ResponseModel(
             answer=response_text,
