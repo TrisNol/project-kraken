@@ -30,7 +30,7 @@ class ConfluenceLoader:
         self.include_attachments = include_attachments
         self.limit = limit
 
-    def load(self):
+    async def load(self):
         cql = f'space="{self.space_key}" order by lastmodified desc'
         results = self.confluence.cql(cql, limit=self.limit)
         documents = []

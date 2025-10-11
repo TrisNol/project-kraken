@@ -15,7 +15,7 @@ class JiraLoader:
             url=self.url, username=self.username, password=self.api_key, cloud=True
         )
 
-    def load(self):
+    async def load(self):
         all_issues = []
         for project in self.projects:
             issues = self.client.jql(

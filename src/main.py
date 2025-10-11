@@ -9,8 +9,10 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from src.core.knowledge_index import KnowledgeIndex
 from src.core.question_answering import QuestionAnswering
+
 from src.core.atlassian.jira_loader import JiraLoader
 from src.core.atlassian.confluence_loader import ConfluenceLoader
+from src.core.git.github_loader import GitHubLoader
 
 load_dotenv()
 
@@ -35,6 +37,11 @@ async def lifespan(app: FastAPI):
         space_key=os.getenv("CONFLUENCE_SPACES"),
         include_attachments=False,
         limit=50,
+    )
+    loaders["github"] = GitHubLoader(
+        repositories=os.getenv("GITHUB_REPOSITORIES", "").split(","),
+        ref=os.getenv("GITHUB_REF", "main"),
+        token=os.getenv("GITHUB_TOKEN"),
     )
     # Init RAG pipeline
     in_memory_document_store = InMemoryDocumentStore(
@@ -67,8 +74,12 @@ async def get_index_stats():
 @app.post("/index/create")
 async def create_index():
     docs = []
-    docs.extend(loaders["jira"].load())
-    docs.extend(loaders["confluence"].load())
+    for loader in loaders.values():
+        if loader is None:
+            continue
+        loader_docs = await loader.load()
+        print(loader_docs)
+        docs.extend(loader_docs)
     if not docs:
         return {"status": "no documents to index"}
     pipelines["index"].create_index(docs)
