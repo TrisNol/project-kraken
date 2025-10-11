@@ -40,7 +40,7 @@ class ConfluenceLoader:
             content_id = result["content"]["id"]
             title = result["content"]["title"]
             body = self.confluence.get_page_by_id(content_id, expand="body.storage")
-            page_content = body["body"]["storage"]["value"]
+            page_content = f"<h1>{title}</h1>\n" + body["body"]["storage"]["value"]
             metadata = {
                 "source": f"{self.confluence.url}/spaces/{self.space_key}/pages/{content_id}",
                 "when": result["lastModified"],
