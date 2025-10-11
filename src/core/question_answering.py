@@ -9,7 +9,10 @@ from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
 from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 
+from src.common.models import BaseMetadata, ConfluenceMetadata, JiraMetadata, GitHubMetadata, ResponseModel
+
 load_dotenv()
+
 
 class QuestionAnswering:
     rag_pipeline: Pipeline = None
@@ -41,8 +44,7 @@ class QuestionAnswering:
         retriever = InMemoryEmbeddingRetriever(document_store)
 
         prompt_builder = ChatPromptBuilder(
-            template=template,
-            required_variables={"documents", "question"}
+            template=template, required_variables={"documents", "question"}
         )
 
         basic_rag_pipeline = Pipeline()
@@ -52,7 +54,9 @@ class QuestionAnswering:
         basic_rag_pipeline.add_component("prompt_builder", prompt_builder)
         basic_rag_pipeline.add_component("llm", llm_generator)
 
-        basic_rag_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
+        basic_rag_pipeline.connect(
+            "text_embedder.embedding", "retriever.query_embedding"
+        )
         basic_rag_pipeline.connect("retriever", "prompt_builder.documents")
         basic_rag_pipeline.connect("prompt_builder", "llm")
 
@@ -60,19 +64,29 @@ class QuestionAnswering:
 
         print(basic_rag_pipeline.graph)
 
-    def answer_question(self, question: str):
+    def answer_question(self, question: str) -> ResponseModel:
         response = self.rag_pipeline.run(
             {
                 "text_embedder": {"text": question},
                 "prompt_builder": {"question": question},
             },
-            include_outputs_from=[
-                "llm",
-                "retriever"
-            ]
+            include_outputs_from=["llm", "retriever"],
         )
         print(response)
-        return {
-            "answer": response.get("llm", {}).get("replies", ["I'm sorry, I don't know how to answer this."])[0],
-            "documents": [doc.content for doc in response.get("retriever", {}).get("documents", [])],
-        }
+        response_text = response.get("llm", {}).get("replies")[0].text
+        return ResponseModel(
+            answer=response_text,
+            source_documents=[
+                self.__map_metadata(doc.meta) for doc in response.get("retriever", {}).get("documents", [])
+            ],
+        )
+
+    def __map_metadata(self, meta: dict) -> BaseMetadata:
+        if meta.get("type") == "JIRA":
+            return JiraMetadata(**meta)
+        elif meta.get("type") == "CONFLUENCE":
+            return ConfluenceMetadata(**meta)
+        elif meta.get("type") == "GITHUB":
+            return GitHubMetadata(**meta)
+        else:
+            raise ValueError(f"Unknown document type: {meta.get('type')}")

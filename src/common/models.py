@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import List, Union
 from enum import Enum
 
 class DocumentSourceType(str, Enum):
@@ -24,3 +25,10 @@ class GitHubMetadata(BaseMetadata):
     file_path: str = Field(..., description="Path to the file in the repository")
     commit_hash: str = Field(..., description="Commit hash of the file version")
     ref: str = Field(..., description="Branch or tag reference")
+
+class ResponseModel(BaseModel):
+    answer: str = Field(..., description="Answer to the question")
+    source_documents: List[Union[JiraMetadata, ConfluenceMetadata, GitHubMetadata]] = Field(
+        ..., 
+        description="List of source documents used to generate the answer, with metadata based on document type"
+    )

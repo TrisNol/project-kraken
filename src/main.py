@@ -1,12 +1,13 @@
 import os
+
 from dotenv import load_dotenv
-from typing import Union
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
+from src.common.models import ResponseModel
 from src.core.knowledge_index import KnowledgeIndex
 from src.core.question_answering import QuestionAnswering
 
@@ -61,12 +62,6 @@ app = FastAPI(lifespan=lifespan)
 async def read_root():
     return {"Hello": "World"}
 
-
-@app.get("/items/{item_id}")
-async def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
-
-
 @app.get("/index/stats")
 async def get_index_stats():
     return {"count": pipelines["index"].get_index_stats()}
@@ -78,13 +73,13 @@ async def create_index():
         if loader is None:
             continue
         loader_docs = await loader.load()
-        print(loader_docs)
         docs.extend(loader_docs)
     if not docs:
         return {"status": "no documents to index"}
     pipelines["index"].create_index(docs)
     return {"status": "index created"}
 
-@app.post("/ask", response_model=dict)
-async def answer_question(question: str):
-    return pipelines["rag"].answer_question(question)
+@app.post("/ask", response_model=ResponseModel)
+async def answer_question(question: str) -> ResponseModel:
+    result = pipelines["rag"].answer_question(question)
+    return result
