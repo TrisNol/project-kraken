@@ -90,6 +90,11 @@ async def create_index():
     pipelines["index"].create_index(docs)
     return {"status": "index created"}
 
+@app.post("/index/clear")
+async def clear_index():
+    pipelines["index"].clear_index()
+    return {"status": "index cleared"}
+
 @app.post("/ask", response_model=ResponseModel)
 async def answer_question(question: str) -> ResponseModel:
     result = pipelines["rag"].answer_question(question)

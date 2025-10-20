@@ -2,6 +2,7 @@ from atlassian import Confluence
 
 from haystack import Document
 from src.common.models import ConfluenceMetadata, DocumentSourceType
+from src.core.atlassian import convert_to_markdown
 
 
 def map_to_confluence_doc(doc: Document) -> Document:
@@ -46,7 +47,9 @@ class ConfluenceLoader:
                 "when": result["lastModified"],
                 "id": content_id,
             }
-            document = Document(content=page_content, meta=metadata)
+            document = Document(
+                content=convert_to_markdown(page_content), meta=metadata
+            )
             documents.append(map_to_confluence_doc(document))
 
             if self.include_attachments:

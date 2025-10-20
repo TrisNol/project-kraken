@@ -12,6 +12,56 @@ from haystack.components.preprocessors import DocumentSplitter
 
 load_dotenv()
 
+class KrakenDocumentSplitter(DocumentSplitter):
+    def split(self, document: Document):
+        meta_type = document.meta.get("type", "")
+
+        if meta_type == "Confluence":
+            # Split at chapters with an overlap
+            return self.split_markdown_chapters_with_overlap(document)
+        elif meta_type == "Jira":
+            # Split at chapters without overlap
+            return self.split_markdown_chapters(document)
+        elif meta_type == "GitHub":
+            # Only split if really necessary
+            return self.split_if_necessary(document)
+        else:
+            # Default splitting behavior
+            return super().split(document)
+
+    def split_markdown_chapters_with_overlap(self, document: Document):
+        # Custom logic to split markdown chapters with overlap
+        chapters = document.content.split("\n# ")  # Split by markdown chapter headers
+        overlap = 1  # Example: Overlap of 1 chapter
+        split_documents = []
+
+        for i in range(len(chapters)):
+            start = max(0, i - overlap)
+            end = i + 1
+            content = "\n# ".join(chapters[start:end])
+            split_documents.append(Document(content=content, meta=document.meta))
+
+        return split_documents
+
+    def split_markdown_chapters(self, document: Document):
+        # Custom logic to split markdown chapters without overlap
+        chapters = document.content.split("\n# ")  # Split by markdown chapter headers
+        split_documents = [
+            Document(content=f"# {chapter}" if idx > 0 else chapter, meta=document.meta)
+            for idx, chapter in enumerate(chapters)
+        ]
+        return split_documents
+
+    def split_if_necessary(self, document: Document):
+        # Custom logic to split only if necessary
+        max_length = 1000  # Example threshold
+        if len(document.content) > max_length:
+            midpoint = len(document.content) // 2
+            return [
+                Document(content=document.content[:midpoint], meta=document.meta),
+                Document(content=document.content[midpoint:], meta=document.meta),
+            ]
+        return [document]
 
 class KnowledgeIndex:
     indexing_pipeline: Pipeline = None
@@ -23,7 +73,7 @@ class KnowledgeIndex:
             url=os.getenv("LLM_HOST"),
         )
         writer = DocumentWriter(document_store=document_store)
-        splitter = DocumentSplitter()
+        splitter = KrakenDocumentSplitter()
         writer = DocumentWriter(
             document_store=document_store, policy=DuplicatePolicy.OVERWRITE
         )

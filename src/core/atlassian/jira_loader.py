@@ -2,6 +2,7 @@ from atlassian import Jira
 
 from haystack import Document
 from src.common.models import JiraMetadata, DocumentSourceType
+from src.core.atlassian import convert_to_markdown
 
 
 class JiraLoader:
@@ -44,5 +45,5 @@ class JiraLoader:
                 issue_key=issue["key"],
                 project_key=project,
             )
-            documents.append(Document(content=content, meta=metadata.model_dump()))
+            documents.append(Document(content=convert_to_markdown(content), meta=metadata.model_dump()))
         return documents

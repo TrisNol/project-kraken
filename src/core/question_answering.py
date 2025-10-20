@@ -20,6 +20,8 @@ class QuestionAnswering:
             ChatMessage.from_user(
                 """
                 Given the following information, answer the question.
+                Respond in the same language as the question.
+                Format your answer in markdown.
 
                 Context:
                 {% for document in documents %}
