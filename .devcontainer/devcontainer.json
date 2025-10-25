@@ -13,13 +13,15 @@
                 "bierner.markdown-mermaid",
                 "github.copilot-chat",
                 "ms-azuretools.vscode-docker",
-                "tamasfe.even-better-toml"
+                "tamasfe.even-better-toml",
+                "svelte.svelte-vscode"
             ]
         }
     },
     "mounts": [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
-        "source=${localWorkspaceFolderBasename}-venv,target=${containerWorkspaceFolder}/.venv,type=volume"
+        "source=${localWorkspaceFolderBasename}-venv,target=${containerWorkspaceFolder}/.venv,type=volume",
+        "source=${localWorkspaceFolderBasename}-node_modules,target=${containerWorkspaceFolder}/frontend/node_modules,type=volume"
     ],
     "features": {
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}

@@ -1,0 +1,14 @@
+.div {
+    padding: 24px;
+    color: rgba(60, 60, 67);
+    text-align: center;
+    background: #ffffff;
+    border-radius: 2px;
+    border: 0.2px solid rgba(60, 60, 67);
+
+    &.f-selected {
+        border-color: #3451b2;
+        // Highlights the border when the node is selected
+        // The f-selected class is automatically added by the library when a node or connection is selected.
+    }
+}

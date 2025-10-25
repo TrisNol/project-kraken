@@ -1,0 +1,16 @@
+<f-flow fDraggable>
+    <f-background>
+        <f-circle-pattern></f-circle-pattern>
+    </f-background>
+    <f-canvas>
+        <f-connection fOutputId="output1" fInputId="input1"></f-connection>
+
+        <app-knowledge-graph-node fNode fDragHandle fNodeOutput [fNodePosition]="{ x: 32, y: 32 }" fOutputId="output1"
+            fOutputConnectableSide="right" title="Node 1">
+        </app-knowledge-graph-node>
+
+        <app-knowledge-graph-node fNode fnodefDragHandle fNodeInput [fNodePosition]="{ x: 240, y: 32 }" fInputId="input1"
+            fInputConnectableSide="left" title="Node 1">
+        </app-knowledge-graph-node>
+    </f-canvas>
+</f-flow>

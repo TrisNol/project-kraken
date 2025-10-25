@@ -14,5 +14,9 @@ RUN apt-get update && apt-get -y install python-is-python3 python3.13-full && ap
 # Install Poetry
 RUN apt-get update && apt-get install -y pipx && apt-get clean
 
+# Install Node.js 22, Bun and Angular
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs && apt-get clean
+RUN npm install -g bun @angular/cli
+
 USER vscode
 RUN pipx install poetry

@@ -1,0 +1,45 @@
+.f-flow {
+    height: 400px;
+}
+
+.f-drag-handle {
+    cursor: move;
+}
+
+::ng-deep {
+    .f-background {
+        line {
+            stroke: var(--background-element-color);
+        }
+
+        circle {
+            fill: var(--background-element-color);
+        }
+    }
+
+    .f-connection {
+        .f-connection-drag-handle {
+            fill: transparent;
+            // By default, this element has a black fill and is used to detect the start of dragging (e.g., onmousedown).
+            // We make it transparent to avoid visual clutter, while keeping it functional.
+        }
+
+        .f-connection-selection {
+            stroke-width: 10;
+            // This is a pseudo-connection (a copy of the main path) used to make it easier to select the connection.
+            // It's slightly thicker than the actual path (which is often only 1px), making it easier to interact with.
+            // It remains invisible to avoid affecting visual clarity but stays active for user interaction.
+        }
+
+        .f-connection-path {
+            stroke: rgba(60, 60, 67);
+            stroke-width: 2;
+        }
+
+        &.f-selected {
+            .f-connection-path {
+                stroke: #3451b2;
+            }
+        }
+    }
+}

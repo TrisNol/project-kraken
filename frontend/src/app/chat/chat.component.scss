@@ -1,0 +1,115 @@
+.chat {
+	height: 100%;
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	gap: 0.75rem;
+	padding: 1rem;
+}
+
+.chat__header {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+}
+
+.chat__messages {
+	overflow: auto;
+	padding: 0.25rem 0.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.bubble {
+	max-width: min(720px, 85%);
+	padding: 0.6rem 0.75rem;
+	border-radius: 0.75rem;
+	background: #f3f4f6;
+	color: #111827;
+	box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+	align-self: flex-start;
+
+	&--user {
+		background: #2563eb;
+		color: #fff;
+		align-self: flex-end;
+	}
+
+	&--assistant {
+		background: #e5e7eb;
+	}
+
+	&__content { white-space: pre-wrap; }
+}
+
+.typing {
+	display: inline-flex;
+	gap: 0.3rem;
+	span {
+		width: 6px; height: 6px; border-radius: 50%;
+		background: #6b7280; opacity: 0.7;
+		animation: blink 1.2s infinite ease-in-out both;
+	}
+	span:nth-child(2) { animation-delay: 0.2s; }
+	span:nth-child(3) { animation-delay: 0.4s; }
+}
+
+@keyframes blink { 0%, 80%, 100% { opacity: 0.3 } 40% { opacity: 1 } }
+
+.chat__input {
+	display: flex;
+	gap: 0.5rem;
+	input[type="text"] {
+		flex: 1;
+		border: 1px solid #e5e7eb;
+		border-radius: 0.5rem;
+		padding: 0.6rem 0.75rem;
+		font: inherit;
+	}
+	button[type="submit"] {
+		padding: 0.6rem 0.9rem;
+		border: none;
+		border-radius: 0.5rem;
+		background: #111827;
+		color: #fff;
+		cursor: pointer;
+		&:disabled { opacity: 0.6; cursor: not-allowed; }
+	}
+}
+
+.refs {
+	margin-top: 0.5rem;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+
+.ref {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	background: #fff;
+	border: 1px solid #e5e7eb;
+	border-radius: 999px;
+	padding: 0.25rem 0.6rem;
+	text-decoration: none;
+	color: inherit;
+	transition: background 0.15s ease;
+	&:hover { background: #f9fafb; }
+}
+
+.ref__icon {
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	mask-size: contain;
+	mask-repeat: no-repeat;
+	mask-position: center;
+	background: currentColor;
+
+	// Simple inline icons via CSS mask using data-icon attribute
+	&[data-icon="link"] { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23000"><path d="M10.59 13.41a1.996 1.996 0 0 0 2.82 0l3.59-3.59a2 2 0 1 0-2.83-2.83l-1 1a1 1 0 1 1-1.41-1.41l1-1a4 4 0 1 1 5.66 5.66l-3.59 3.59a4 4 0 0 1-5.66-5.66l.88-.88a1 1 0 1 1 1.41 1.41l-.88.88a2 2 0 1 0 2.83 2.83l3.59-3.59"/></svg>'); }
+	&[data-icon="doc"] { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="%23000"/><path d="M14 2v6h6" fill="%23000"/></svg>'); }
+	&[data-icon="code"] { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.4 16.6 5.8 13l3.6-3.6L8 8l-5 5 5 5 1.4-1.4Zm5.2 0 3.6-3.6-3.6-3.6L16 8l5 5-5 5-1.4-1.4Z" fill="%23000"/></svg>'); }
+}

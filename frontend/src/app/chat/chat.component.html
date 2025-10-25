@@ -1,0 +1,45 @@
+<div class="chat">
+    <div class="chat__header">
+        <h2>Chat</h2>
+    </div>
+
+    <div class="chat__messages" aria-live="polite">
+        @for (msg of messages(); track msg.id) {
+        <div class="bubble" [class.bubble--user]="msg.role === 'user'"
+            [class.bubble--assistant]="msg.role === 'assistant'">
+            <div class="bubble__content">
+                @if (msg.role === 'assistant') {
+                <markdown [data]="msg.content"></markdown>
+                } @else {
+                {{ msg.content }}
+                }
+            </div>
+
+            @if (msg.refs?.length) {
+            <div class="refs" role="list" aria-label="References used">
+                @for (ref of msg.refs; track ref.url) {
+                <a role="listitem" class="ref" [href]="ref.url" target="_blank" rel="noopener noreferrer">
+                    <span class="ref__icon" [attr.data-icon]="ref.icon || 'link'" aria-hidden="true"></span>
+                    <span class="ref__text">{{ ref.title }}</span>
+                </a>
+                }
+            </div>
+            }
+        </div>
+        }
+
+        @if (isThinking()) {
+        <div class="bubble bubble--assistant">
+            <div class="typing" aria-label="Assistant is typing">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+        }
+    </div>
+
+    <form class="chat__input" (submit)="send(); $event.preventDefault()" autocomplete="off">
+        <input name="prompt" [ngModel]="input()" (ngModelChange)="input.set($event)" type="text"
+            placeholder="Ask anything…" [disabled]="isThinking()" aria-label="Enter your prompt" />
+        <button type="submit" [disabled]="!input().trim() || isThinking()">Send</button>
+    </form>
+</div>
