@@ -1,21 +1,14 @@
-import os
-from dotenv import load_dotenv
-
 from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage
-from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
-from haystack_integrations.components.generators.ollama import OllamaChatGenerator
 
 from src.common.models import BaseMetadata, ConfluenceMetadata, JiraMetadata, GitHubMetadata, ResponseModel
-
-load_dotenv()
 
 
 class QuestionAnswering:
     rag_pipeline: Pipeline = None
 
-    def __init__(self, embedding_retriever):
+    def __init__(self, embedding_retriever, llm_generator, text_embedder):
         template = [
             ChatMessage.from_user(
                 """
@@ -33,15 +26,6 @@ class QuestionAnswering:
                 """
             )
         ]
-        llm_generator = OllamaChatGenerator(
-            model=os.getenv("LLM_CHAT_MODEL"),
-            url=os.getenv("LLM_HOST"),
-        )
-        text_embedder = OllamaTextEmbedder(
-            model=os.getenv("LLM_EMBEDDING_MODEL"),
-            url=os.getenv("LLM_HOST"),
-        )
-
         retriever = embedding_retriever
 
         prompt_builder = ChatPromptBuilder(

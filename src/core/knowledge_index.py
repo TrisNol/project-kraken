@@ -1,16 +1,8 @@
-import os
-from dotenv import load_dotenv
-
 from haystack import Document, Pipeline
-from haystack_integrations.components.embedders.ollama.document_embedder import (
-    OllamaDocumentEmbedder,
-)
 from haystack.document_stores.types import DocumentStore
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.components.preprocessors import DocumentSplitter
-
-load_dotenv()
 
 class KrakenDocumentSplitter(DocumentSplitter):
     def split(self, document: Document):
@@ -66,12 +58,7 @@ class KrakenDocumentSplitter(DocumentSplitter):
 class KnowledgeIndex:
     indexing_pipeline: Pipeline = None
 
-    def __init__(self, document_store: DocumentStore = None):
-        # Init Pipeline components
-        document_embedder = OllamaDocumentEmbedder(
-            model=os.getenv("LLM_EMBEDDING_MODEL"),
-            url=os.getenv("LLM_HOST"),
-        )
+    def __init__(self, document_store: DocumentStore, document_embedder):
         writer = DocumentWriter(document_store=document_store)
         splitter = KrakenDocumentSplitter()
         writer = DocumentWriter(

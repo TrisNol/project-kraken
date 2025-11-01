@@ -17,6 +17,12 @@ from src.core.atlassian.jira_loader import JiraLoader
 from src.core.atlassian.confluence_loader import ConfluenceLoader
 from src.core.git.github_loader import GitHubLoader
 
+from src.core.settings import (
+    create_llm_generator,
+    create_text_embedder,
+    create_document_embedder,
+)
+
 load_dotenv()
 
 pipelines = {}
@@ -61,8 +67,19 @@ async def lifespan(app: FastAPI):
         document_store=neo4j_document_store,
         top_k=5,
     )
-    pipelines["rag"] = QuestionAnswering(embedding_retriever=neo4j_embedding_retriever)
-    pipelines["index"] = KnowledgeIndex(document_store=neo4j_document_store)
+    # Create provider components centrally in settings.py and pass concrete
+    # objects into the pipelines. This keeps provider selection out of the
+    # pipeline classes themselves.
+    llm_generator = create_llm_generator()
+    text_embedder = create_text_embedder()
+    document_embedder = create_document_embedder()
+
+    pipelines["rag"] = QuestionAnswering(
+        embedding_retriever=neo4j_embedding_retriever,
+        llm_generator=llm_generator,
+        text_embedder=text_embedder,
+    )
+    pipelines["index"] = KnowledgeIndex(document_store=neo4j_document_store, document_embedder=document_embedder)
     yield
     # Clean up before shutdown
     pipelines.clear()
