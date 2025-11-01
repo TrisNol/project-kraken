@@ -1,0 +1,12 @@
+<div class="settings">
+  <h2>Settings</h2>
+
+  <div class="actions">
+    <button pButton type="button" label="Ingest data to Knowledge Graph" (click)="ingest()" [disabled]="isWorking()"></button>
+    <button pButton type="button" label="Reset Knowledge Graph" (click)="clear()" [disabled]="isWorking()"></button>
+  </div>
+
+  <div class="status" [hidden]="!message()">
+    <pre class="message">{{ message() }}</pre>
+  </div>
+</div>
