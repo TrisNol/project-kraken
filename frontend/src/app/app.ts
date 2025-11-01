@@ -3,7 +3,6 @@ import { Router, RouterOutlet, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { SidebarComponent } from '../sidebar/sidebar.component';
-import { NgIf } from '@angular/common';
 
 @Component({
   selector: 'app-root',
