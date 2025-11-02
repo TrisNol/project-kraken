@@ -103,13 +103,20 @@
 	display: inline-block;
 	width: 14px;
 	height: 14px;
-	mask-size: contain;
-	mask-repeat: no-repeat;
-	mask-position: center;
-	background: currentColor;
+	/* Default sizing for both CSS-mask icons and real image icons */
+	width: 14px;
+	height: 14px;
+	display: inline-block;
+	vertical-align: middle;
+	object-fit: contain;
+	background: transparent; /* ensure PNG transparency shows through */
 
-	// Simple inline icons via CSS mask using data-icon attribute
-	&[data-icon="link"] { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23000"><path d="M10.59 13.41a1.996 1.996 0 0 0 2.82 0l3.59-3.59a2 2 0 1 0-2.83-2.83l-1 1a1 1 0 1 1-1.41-1.41l1-1a4 4 0 1 1 5.66 5.66l-3.59 3.59a4 4 0 0 1-5.66-5.66l.88-.88a1 1 0 1 1 1.41 1.41l-.88.88a2 2 0 1 0 2.83 2.83l3.59-3.59"/></svg>'); }
-	&[data-icon="doc"] { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="%23000"/><path d="M14 2v6h6" fill="%23000"/></svg>'); }
-	&[data-icon="code"] { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.4 16.6 5.8 13l3.6-3.6L8 8l-5 5 5 5 1.4-1.4Zm5.2 0 3.6-3.6-3.6-3.6L16 8l5 5-5 5-1.4-1.4Z" fill="%23000"/></svg>'); }
+	/* When the icon is an <img>, ensure transparency shows and it fills the slot */
+	&[src], &.img, img {
+		background: transparent;
+		width: 14px;
+		height: 14px;
+		object-fit: contain;
+		display: inline-block;
+	}
 }

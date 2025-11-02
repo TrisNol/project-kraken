@@ -74,6 +74,10 @@ class KnowledgeIndex:
         self.indexing_pipeline.connect("embedder", "writer")
 
     def create_index(self, documents: list[Document]):
+        # Filter out documents with less than 50 characters
+        documents = [d for d in documents if getattr(d, "content", None) and len(str(d.content)) >= 50]
+        if not documents:
+            return
         self.indexing_pipeline.run({"documents": documents})
 
     def get_index_stats(self):

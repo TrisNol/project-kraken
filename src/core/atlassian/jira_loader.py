@@ -6,12 +6,11 @@ from src.core.atlassian import convert_to_markdown
 
 
 class JiraLoader:
-    def __init__(self, url, username, api_key, projects, limit=50):
+    def __init__(self, url, username, api_key, projects):
         self.url = url
         self.username = username
         self.api_key = api_key
-        self.projects = projects.split(",")
-        self.limit = limit
+        self.projects = projects
         self.client = Jira(
             url=self.url, username=self.username, password=self.api_key, cloud=True
         )

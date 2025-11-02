@@ -5,7 +5,15 @@ export type ChatRole = 'user' | 'assistant';
 export interface ChatReference {
   title: string;
   url: string;
+  /**
+   * Legacy/simple icon hint used for CSS fallbacks. Prefer `iconUrl` when available.
+   */
   icon?: 'link' | 'doc' | 'code';
+  /**
+   * Optional URL to an icon image served by the API (e.g. `/icon?type=JIRA`).
+   * When present the UI should render the image.
+   */
+  iconUrl?: string;
 }
 
 export interface ChatMessage {
@@ -60,6 +68,9 @@ export class ChatService {
 
       const refs: ChatReference[] = (data.source_documents ?? []).map((doc): ChatReference => {
         const icon: ChatReference['icon'] = doc.type === 'GITHUB' ? 'code' : doc.type === 'CONFLUENCE' ? 'doc' : 'link';
+        // Build a URL for the backend icon endpoint so the UI can render an image.
+        const iconUrl = `${this.apiBase}/icon?type=${encodeURIComponent(doc.type)}`;
+
         // Prefer backend-provided link in `source`, otherwise try to construct a sensible fallback
         let url = doc.source || '';
         if (!url && doc.type === 'GITHUB' && doc.repo_name && doc.file_path) {
@@ -74,7 +85,7 @@ export class ChatService {
             : doc.type === 'GITHUB' && (doc.repo_name || doc.file_path)
             ? `GitHub ${doc.repo_name ?? ''}${doc.file_path ? `/${doc.file_path}` : ''}`.trim()
             : doc.type;
-        return { title, url: url || '#', icon };
+        return { title, url: url || '#', icon, iconUrl };
       });
 
       return { content: data.answer, refs };

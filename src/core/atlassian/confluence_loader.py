@@ -22,18 +22,22 @@ class ConfluenceLoader:
         url: str,
         username: str,
         api_key: str,
-        space_key: str,
+        spaces: list[str],
         include_attachments: bool = False,
-        limit: int = 100,
     ):
         self.confluence = Confluence(url=url, username=username, password=api_key)
-        self.space_key = space_key
+        self.spaces = spaces
         self.include_attachments = include_attachments
-        self.limit = limit
 
-    async def load(self):
-        cql = f'space="{self.space_key}" order by lastmodified desc'
-        results = self.confluence.cql(cql, limit=self.limit)
+    async def load(self) -> list[Document]:
+        documents = []
+        for space_key in self.spaces:
+            documents.extend(await self._load_space(space_key))
+        return documents
+
+    async def _load_space(self, space_key: str) -> list[Document]:
+        cql = f'space="{space_key}" order by lastmodified desc'
+        results = self.confluence.cql(cql)
         documents = []
         for result in results.get("results", []):
             if "id" not in result.get("content", {}):
@@ -43,7 +47,7 @@ class ConfluenceLoader:
             body = self.confluence.get_page_by_id(content_id, expand="body.storage")
             page_content = f"<h1>{title}</h1>\n" + body["body"]["storage"]["value"]
             metadata = {
-                "source": f"{self.confluence.url}/spaces/{self.space_key}/pages/{content_id}",
+                "source": f"{self.confluence.url}/spaces/{space_key}/pages/{content_id}",
                 "when": result["lastModified"],
                 "id": content_id,
             }
@@ -59,7 +63,7 @@ class ConfluenceLoader:
                         attachment["id"]
                     )
                     attachment_metadata = {
-                        "source": f"{self.confluence.url}/spaces/{self.space_key}/pages/{content_id}/attachments/{attachment['id']}",
+                        "source": f"{self.confluence.url}/spaces/{space_key}/pages/{content_id}/attachments/{attachment['id']}",
                         "when": attachment["version"]["when"],
                         "id": attachment["id"],
                     }

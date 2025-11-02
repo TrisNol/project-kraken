@@ -3,13 +3,14 @@ import os
 from dotenv import load_dotenv
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 
 from neo4j_haystack import Neo4jDocumentStore, Neo4jEmbeddingRetriever
 
-from src.common.models import ResponseModel
+from src.common.models import DocumentSourceType, ResponseModel
 from src.core.knowledge_index import KnowledgeIndex
 from src.core.question_answering import QuestionAnswering
 
@@ -36,16 +37,13 @@ async def lifespan(app: FastAPI):
         url=os.getenv("JIRA_URL"),
         username=os.getenv("JIRA_USERNAME"),
         api_key=os.getenv("JIRA_API_KEY"),
-        projects=os.getenv("JIRA_PROJECTS"),
-        limit=50,
+        projects=os.getenv("JIRA_PROJECTS").split(","),
     )
     loaders["confluence"] = ConfluenceLoader(
         url=os.getenv("CONFLUENCE_URL"),
         username=os.getenv("CONFLUENCE_USERNAME"),
         api_key=os.getenv("CONFLUENCE_API_KEY"),
-        space_key=os.getenv("CONFLUENCE_SPACES"),
-        include_attachments=False,
-        limit=50,
+        spaces=os.getenv("CONFLUENCE_SPACES").split(","),
     )
     loaders["github"] = GitHubLoader(
         repositories=os.getenv("GITHUB_REPOSITORIES", "").split(","),
@@ -58,9 +56,9 @@ async def lifespan(app: FastAPI):
         username=os.getenv("NEO4J_USERNAME"),
         password=os.getenv("NEO4J_PASSWORD"),
         database="neo4j",
-        embedding_dim=768,
+        embedding_dim=int(os.getenv("EMBEDDING_DIMENSION", "768")),
         embedding_field="embedding",
-        index="document_embeddings", # The name of the Vector Index in Neo4j
+        index="document_embeddings",  # The name of the Vector Index in Neo4j
         node_label="Document",
     )
     neo4j_embedding_retriever = Neo4jEmbeddingRetriever(
@@ -79,7 +77,9 @@ async def lifespan(app: FastAPI):
         llm_generator=llm_generator,
         text_embedder=text_embedder,
     )
-    pipelines["index"] = KnowledgeIndex(document_store=neo4j_document_store, document_embedder=document_embedder)
+    pipelines["index"] = KnowledgeIndex(
+        document_store=neo4j_document_store, document_embedder=document_embedder
+    )
     yield
     # Clean up before shutdown
     pipelines.clear()
@@ -103,9 +103,11 @@ app.add_middleware(
 async def read_root():
     return {"Hello": "World"}
 
+
 @app.get("/index/stats")
 async def get_index_stats():
     return {"count": pipelines["index"].get_index_stats()}
+
 
 @app.post("/index/create")
 async def create_index():
@@ -120,12 +122,43 @@ async def create_index():
     pipelines["index"].create_index(docs)
     return {"status": "index created"}
 
+
 @app.post("/index/clear")
 async def clear_index():
     pipelines["index"].clear_index()
     return {"status": "index cleared"}
 
+
 @app.post("/ask", response_model=ResponseModel)
 async def answer_question(question: str) -> ResponseModel:
     result = pipelines["rag"].answer_question(question)
     return result
+
+@app.get("/icon")
+async def get_icon(type: DocumentSourceType):
+    # Map types to filenames
+    filename = None
+    if type == DocumentSourceType.JIRA:
+        filename = "jira.png"
+    elif type == DocumentSourceType.CONFLUENCE:
+        filename = "confluence.png"
+    elif type == DocumentSourceType.GITHUB:
+        filename = "github.png"
+
+    if not filename:
+        raise HTTPException(status_code=404, detail="Icon not found")
+
+    # Assets are stored next to this module in the `assets/` folder
+    base_dir = os.path.dirname(__file__)
+    path = os.path.join(base_dir, "assets", filename)
+
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Icon not found")
+
+    # Return the file with an explicit image media type and disable caching
+    headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, s-maxage=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+    return FileResponse(path, media_type="image/png", headers=headers)

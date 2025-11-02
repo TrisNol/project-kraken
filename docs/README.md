@@ -16,3 +16,7 @@ With **Project Kraken**, you can:
 
 Unleash the power of seamless knowledge integration with Project Kraken! 🦑
 
+## Configuration
+
+You can currently switch between [ollama](https://ollama.com/) and [OpenAI](https://openai.com/api/) as our GenAI provider. This can be configured via a set of environment variables (see: [.env.example](../.env.example)).
+
