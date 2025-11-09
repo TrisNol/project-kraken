@@ -13,8 +13,13 @@ class QuestionAnswering:
             ChatMessage.from_user(
                 """
                 Given the following information, answer the question.
+                Consider only the context provided and do not make up any answers.
+                Think about your answer carefully and provide a concise and accurate response.
+                Ignore context that is not relevant to the question.
                 Respond in the same language as the question.
-                Format your answer in markdown.
+                Format your answer in markdown without wrapping the entire response in markdown.
+
+                If the context provided does not contain the answer, respond with "I don't know. Have you tried turning it off and on again?".
 
                 Context:
                 {% for document in documents %}
