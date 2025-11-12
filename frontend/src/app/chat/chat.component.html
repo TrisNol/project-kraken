@@ -40,6 +40,18 @@
     <form class="chat__input" (submit)="send(); $event.preventDefault()" autocomplete="off">
         <input name="prompt" [ngModel]="input()" (ngModelChange)="input.set($event)" type="text"
             placeholder="Ask anything…" [disabled]="isThinking()" aria-label="Enter your prompt" />
+        <button #settingsBtn type="button" class="settings-btn" (click)="popover.toggle($event)" aria-haspopup="dialog">
+            <i class="pi pi-cog" aria-hidden="true"></i>
+            <span class="visually-hidden">Settings</span>
+        </button>
+        <p-popover #popover [dismissable]="true" appendTo="body">
+            <div class="chat__settings" role="region" aria-label="Chat sources settings">
+                <p-multiSelect [options]="sourceOptions" [(ngModel)]="selectedSources" name="sources"
+                    [ngModelOptions]="{standalone: true}" optionLabel="label" optionValue="value" placeholder="Select sources">
+                </p-multiSelect>
+            </div>
+        </p-popover>
+
         <button type="submit" [disabled]="!input().trim() || isThinking()">Send</button>
     </form>
 </div>

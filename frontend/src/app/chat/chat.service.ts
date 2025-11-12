@@ -29,15 +29,19 @@ export class ChatService {
   // Optionally allow overriding the API base URL by setting (window as any).__API_URL__ = 'http://localhost:8000'
   private readonly apiBase: string = 'http://localhost:8000';
 
-  async ask(prompt: string): Promise<Omit<ChatMessage, 'id' | 'role' | 'createdAt'>> {
-    const url = `${this.apiBase}/ask?question=${encodeURIComponent(prompt)}`;
+  async ask(prompt: string, sources: string[]): Promise<Omit<ChatMessage, 'id' | 'role' | 'createdAt'>> {
+  const url = `${this.apiBase}/ask`;
 
     try {
+      const payload = { question: prompt, sources };
+
       const res = await fetch(url, {
         method: 'POST',
         headers: {
-          'Accept': 'application/json'
-        }
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -81,10 +85,10 @@ export class ChatService {
           doc.type === 'JIRA' && doc.issue_key
             ? `Jira ${doc.issue_key}`
             : doc.type === 'CONFLUENCE' && (doc.page_id || doc.space_key)
-            ? `Confluence ${doc.page_id ?? doc.space_key}`
-            : doc.type === 'GITHUB' && (doc.repo_name || doc.file_path)
-            ? `GitHub ${doc.repo_name ?? ''}${doc.file_path ? `/${doc.file_path}` : ''}`.trim()
-            : doc.type;
+              ? `Confluence ${doc.page_id ?? doc.space_key}`
+              : doc.type === 'GITHUB' && (doc.repo_name || doc.file_path)
+                ? `GitHub ${doc.repo_name ?? ''}${doc.file_path ? `/${doc.file_path}` : ''}`.trim()
+                : doc.type;
         return { title, url: url || '#', icon, iconUrl };
       });
 

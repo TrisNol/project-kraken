@@ -2,12 +2,14 @@ import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { ChatService, ChatMessage } from './chat.service';
 import { MarkdownComponent } from 'ngx-markdown';
+import { MultiSelectModule } from 'primeng/multiselect';
+import { PopoverModule } from 'primeng/popover';
 
 @Component({
     selector: 'app-chat',
     templateUrl: './chat.component.html',
     styleUrls: ['./chat.component.scss'],
-    imports: [FormsModule, MarkdownComponent],
+    imports: [FormsModule, MarkdownComponent, MultiSelectModule, PopoverModule],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ChatComponent {
@@ -17,6 +19,14 @@ export class ChatComponent {
     input = signal('');
     isThinking = signal(false);
     messages = signal<ChatMessage[]>([]);
+
+    // Sources multi-select (settings)
+    selectedSources: string[] = ['JIRA', 'CONFLUENCE', 'GITHUB'];
+    sourceOptions = [
+        { label: 'Jira', value: 'JIRA' },
+        { label: 'Confluence', value: 'CONFLUENCE' },
+        { label: 'GitHub', value: 'GITHUB' }
+    ];
 
     // Auto-scroll effect on new messages
     constructor() {
@@ -29,6 +39,8 @@ export class ChatComponent {
             });
         });
     }
+
+    // Note: Popover (OverlayPanel) is toggled from template using a template reference variable
 
     async send() {
         const text = this.input().trim();
@@ -45,7 +57,7 @@ export class ChatComponent {
 
         this.isThinking.set(true);
         try {
-            const ans = await this.chat.ask(text);
+            const ans = await this.chat.ask(text, this.selectedSources);
             const assistantMsg: ChatMessage = {
                 id: crypto.randomUUID(),
                 role: 'assistant',

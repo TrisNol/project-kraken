@@ -8,7 +8,7 @@ from src.common.models import BaseMetadata, ConfluenceMetadata, JiraMetadata, Gi
 class QuestionAnswering:
     rag_pipeline: Pipeline = None
 
-    def __init__(self, embedding_retriever, llm_generator, text_embedder):
+    def __init__(self, embedding_retriever, llm_generator, text_embedder, index_name: str = "document_embeddings", top_k: int = 5):
         template = [
             ChatMessage.from_user(
                 """
@@ -49,14 +49,46 @@ class QuestionAnswering:
         )
         basic_rag_pipeline.connect("retriever", "prompt_builder.documents")
         basic_rag_pipeline.connect("prompt_builder", "llm")
-
         self.rag_pipeline = basic_rag_pipeline
+        # Configuration for constructing the Cypher query at runtime
+        self.index_name = index_name
+        self.top_k = top_k
 
-    def answer_question(self, question: str) -> ResponseModel:
+    def answer_question(self, question: str, sources: list[str] | None = None) -> ResponseModel:
+        # Construct query to perform a hybrid-search based on embeddings and a standard WHERE clause
+        base_query = """
+        CALL db.index.vector.queryNodes($index, $top_k, $query_embedding)
+        YIELD node as doc, score
+        MATCH (doc)
+        """
+
+        parameters = {
+            "index": self.index_name,
+            "top_k": self.top_k,
+        }
+
+        if sources:
+            normalized = [s.upper() for s in sources]
+            base_query += """
+            WHERE doc.type IN $types
+            """
+            parameters["types"] = normalized
+
+        base_query += """
+        RETURN doc{.*, score}, score
+        ORDER BY score DESC LIMIT $top_k
+        """
+
+        retriever_input = {
+            "query": base_query,
+            "parameters": parameters,
+        }
+
         response = self.rag_pipeline.run(
             {
                 "text_embedder": {"text": question},
                 "prompt_builder": {"question": question},
+                "retriever": retriever_input,
             },
             include_outputs_from=["llm", "retriever"],
         )
