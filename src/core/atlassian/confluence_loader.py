@@ -10,6 +10,7 @@ from src.core.atlassian import convert_to_markdown
 def map_to_confluence_doc(doc: Document) -> Document:
     meta: ConfluenceMetadata = ConfluenceMetadata(
         source=doc.meta.get("source"),
+        title=doc.meta.get("title"),
         type=DocumentSourceType.CONFLUENCE,
         last_updated=normalize_when(doc.meta.get("when")),
         page_id=doc.meta.get("id"),
@@ -116,6 +117,7 @@ class ConfluenceLoader:
                     "source": f"{self.confluence.url}/spaces/{space_key}/pages/{content_id}",
                     "when": when,
                     "id": content_id,
+                    "title": title,
                 }
 
                 document = Document(content=convert_to_markdown(page_content), meta=metadata)

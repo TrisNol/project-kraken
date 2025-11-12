@@ -43,6 +43,7 @@ class JiraLoader:
                 last_updated=issue["fields"]["updated"],
                 issue_key=issue["key"],
                 project_key=project,
+                title=issue["fields"]["summary"],
             )
             documents.append(Document(content=convert_to_markdown(content), meta=metadata.model_dump()))
         return documents

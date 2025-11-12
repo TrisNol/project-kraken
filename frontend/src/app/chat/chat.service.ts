@@ -51,6 +51,7 @@ export class ChatService {
       type DocumentSourceType = 'JIRA' | 'CONFLUENCE' | 'GITHUB';
       interface BaseMetadata {
         source?: string;
+        title?: string;
         type: DocumentSourceType;
         last_updated?: string;
         // Specific fields by type (optional since union is not enforced at runtime)
@@ -81,14 +82,31 @@ export class ChatService {
           const ref = doc.ref || 'main';
           url = `https://github.com/${doc.repo_name}/blob/${encodeURIComponent(ref)}/${doc.file_path}`;
         }
-        const title =
-          doc.type === 'JIRA' && doc.issue_key
-            ? `Jira ${doc.issue_key}`
-            : doc.type === 'CONFLUENCE' && (doc.page_id || doc.space_key)
-              ? `Confluence ${doc.page_id ?? doc.space_key}`
-              : doc.type === 'GITHUB' && (doc.repo_name || doc.file_path)
-                ? `GitHub ${doc.repo_name ?? ''}${doc.file_path ? `/${doc.file_path}` : ''}`.trim()
-                : doc.type;
+        let title: string;
+        switch (doc.type) {
+          case 'JIRA':
+            // For Jira prefer the issue key, fall back to title or the literal type
+            title = doc.issue_key ?? 'Jira';
+            break;
+          case 'CONFLUENCE':
+            // For Confluence prefer the page title supplied by the backend
+            if (doc.space_key && doc.title) {
+              title = `${doc.space_key}: ${doc.title}`;
+            } else {
+              title = 'Confluence';
+            }
+            break;
+          case 'GITHUB':
+            // For GitHub render repo/file if available, otherwise fall back to title
+            if (doc.repo_name && doc.file_path) {
+              title = `${doc.repo_name}/${doc.file_path}`;
+            } else {
+              title = 'GitHub';
+            }
+            break;
+          default:
+            title = doc.type ?? 'Document';
+        }
         return { title, url: url || '#', icon, iconUrl };
       });
 

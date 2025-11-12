@@ -15,10 +15,12 @@ class BaseMetadata(BaseModel):
 class JiraMetadata(BaseMetadata):
     issue_key: str = Field(..., description="JIRA issue key")
     project_key: str = Field(..., description="JIRA project key")
+    title: str = Field(..., description="Title of the JIRA issue")
 
 class ConfluenceMetadata(BaseMetadata):
     page_id: str = Field(..., description="Confluence page ID")
     space_key: str = Field(..., description="Confluence space key")
+    title: str = Field(..., description="Title of the Confluence page")
 
 class GitHubMetadata(BaseMetadata):
     repo_name: str = Field(..., description="GitHub repository name")
