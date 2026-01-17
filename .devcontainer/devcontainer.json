@@ -13,8 +13,7 @@
                 "bierner.markdown-mermaid",
                 "github.copilot-chat",
                 "ms-azuretools.vscode-docker",
-                "tamasfe.even-better-toml",
-                "svelte.svelte-vscode"
+                "tamasfe.even-better-toml"
             ]
         }
     },
@@ -30,5 +29,5 @@
         "--network=host",
         "--add-host=host.docker.internal:host-gateway"
     ],
-    "postAttachCommand": "sudo chown -R vscode:vscode ./.venv"
+    "postAttachCommand": "sudo chown -R vscode:vscode ./.venv && sudo chown -R vscode:vscode ./frontend/node_modules"
 }
