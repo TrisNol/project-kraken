@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { environment } from '../../environments/environment';
 
 export type ChatRole = 'user' | 'assistant';
 
@@ -27,7 +28,7 @@ export interface ChatMessage {
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   // Optionally allow overriding the API base URL by setting (window as any).__API_URL__ = 'http://localhost:8000'
-  private readonly apiBase: string = 'http://localhost:8000';
+  private readonly apiBase = environment.apiBase;
 
   async ask(prompt: string, sources: string[]): Promise<Omit<ChatMessage, 'id' | 'role' | 'createdAt'>> {
   const url = `${this.apiBase}/ask`;

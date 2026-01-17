@@ -14,9 +14,10 @@ from neo4j_haystack import (
     Neo4jDynamicDocumentRetriever,
 )
 
-from src.common.models import DocumentSourceType, ResponseModel
+from src.common.models import DocumentSourceType, ResponseModel, GraphResponse
 from src.core.knowledge_index import KnowledgeIndex
 from src.core.question_answering import QuestionAnswering
+from src.core.knowledge_graph_service import KnowledgeGraphService
 
 from src.core.atlassian.jira_loader import JiraLoader
 from src.core.atlassian.confluence_loader import ConfluenceLoader
@@ -92,6 +93,12 @@ async def lifespan(app: FastAPI):
     pipelines["index"] = KnowledgeIndex(
         document_store=neo4j_document_store, document_embedder=document_embedder
     )
+    pipelines["graph"] = KnowledgeGraphService(
+        neo4j_url=os.getenv("NEO4J_URL"),
+        neo4j_username=os.getenv("NEO4J_USERNAME"),
+        neo4j_password=os.getenv("NEO4J_PASSWORD"),
+        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j")
+    )
     yield
     # Clean up before shutdown
     pipelines.clear()
@@ -153,6 +160,14 @@ async def answer_question(body: AskRequest) -> ResponseModel:
 
     result = pipelines["rag"].answer_question(body.question, sources)
     return result
+
+@app.get("/graph", response_model=GraphResponse)
+async def get_knowledge_graph() -> GraphResponse:
+    """
+    Fetch the knowledge graph with nodes and their relationships from Neo4j.
+    """
+    nodes, edges = pipelines["graph"].fetch_graph(limit=100)
+    return GraphResponse(nodes=nodes, edges=edges)
 
 @app.get("/icon")
 async def get_icon(type: DocumentSourceType):

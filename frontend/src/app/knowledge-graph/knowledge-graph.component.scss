@@ -1,5 +1,21 @@
+.knowledge-graph {
+    height: 100%;
+    width: 100%;
+
+    &__loading,
+    &__empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: rgba(60, 60, 67, 0.7);
+        font-size: 16px;
+    }
+}
+
 .f-flow {
-    height: 400px;
+    height: 100%;
+    width: 100%;
 }
 
 .f-drag-handle {

@@ -34,3 +34,19 @@ class ResponseModel(BaseModel):
         ..., 
         description="List of source documents used to generate the answer, with metadata based on document type"
     )
+
+class GraphNode(BaseModel):
+    id: str = Field(..., description="Unique identifier for the node")
+    title: str = Field(..., description="Display title for the node")
+    url: str = Field(..., description="Link to the original source")
+    type: DocumentSourceType = Field(..., description="Type of the document source")
+    metadata: Union[JiraMetadata, ConfluenceMetadata, GitHubMetadata] = Field(..., description="Node metadata")
+
+class GraphEdge(BaseModel):
+    source: str = Field(..., description="Source node ID")
+    target: str = Field(..., description="Target node ID")
+    relationship: str = Field(..., description="Type of relationship")
+
+class GraphResponse(BaseModel):
+    nodes: List[GraphNode] = Field(..., description="List of nodes in the graph")
+    edges: List[GraphEdge] = Field(..., description="List of edges connecting nodes")

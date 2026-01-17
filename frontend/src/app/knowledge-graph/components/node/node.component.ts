@@ -13,4 +13,6 @@ import { ButtonModule } from "primeng/button";
 })
 export class NodeComponent {
     title = input.required<string>();
+    url = input.required<string>();
+    iconUrl = input<string>();
 }

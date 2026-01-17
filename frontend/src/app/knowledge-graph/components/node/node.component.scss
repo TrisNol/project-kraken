@@ -1,14 +1,35 @@
-.div {
-    padding: 24px;
-    color: rgba(60, 60, 67);
-    text-align: center;
+.node {
+    padding: 16px;
+    min-width: 200px;
     background: #ffffff;
-    border-radius: 2px;
-    border: 0.2px solid rgba(60, 60, 67);
+    border-radius: 8px;
+    border: 1px solid rgba(60, 60, 67, 0.3);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
 
     &.f-selected {
         border-color: #3451b2;
-        // Highlights the border when the node is selected
-        // The f-selected class is automatically added by the library when a node or connection is selected.
+        box-shadow: 0 4px 8px rgba(52, 81, 178, 0.2);
+    }
+
+    &__icon {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+    }
+
+    &__title {
+        font-size: 14px;
+        font-weight: 500;
+        color: rgba(60, 60, 67);
+        text-align: center;
+        word-break: break-word;
+    }
+
+    &__link {
+        text-decoration: none;
     }
 }

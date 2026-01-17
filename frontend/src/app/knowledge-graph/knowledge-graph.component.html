@@ -1,16 +1,39 @@
-<f-flow fDraggable>
-    <f-background>
-        <f-circle-pattern></f-circle-pattern>
-    </f-background>
-    <f-canvas>
-        <f-connection fOutputId="output1" fInputId="input1"></f-connection>
+<div class="knowledge-graph">
+    @if (isLoading()) {
+    <div class="knowledge-graph__loading">
+        <p>Loading knowledge graph...</p>
+    </div>
+    } @else if (nodes().length === 0) {
+    <div class="knowledge-graph__empty">
+        <p>No nodes found. Please index some documents first.</p>
+    </div>
+    } @else {
+    <f-flow fDraggable>
+        <f-background>
+            <f-circle-pattern></f-circle-pattern>
+        </f-background>
+        <f-canvas>
+            @for (edge of edges(); track edge.source + edge.target) {
+            <f-connection [fOutputId]="edge.source" [fInputId]="edge.target"></f-connection>
+            }
 
-        <app-knowledge-graph-node fNode fDragHandle fNodeOutput [fNodePosition]="{ x: 32, y: 32 }" fOutputId="output1"
-            fOutputConnectableSide="right" title="Node 1">
-        </app-knowledge-graph-node>
-
-        <app-knowledge-graph-node fNode fnodefDragHandle fNodeInput [fNodePosition]="{ x: 240, y: 32 }" fInputId="input1"
-            fInputConnectableSide="left" title="Node 1">
-        </app-knowledge-graph-node>
-    </f-canvas>
-</f-flow>
+            @for (node of nodes(); track node.id; let i = $index) {
+            <app-knowledge-graph-node 
+                fNode 
+                fDragHandle 
+                fNodeOutput 
+                fNodeInput
+                [fNodePosition]="getNodePosition(i)" 
+                [fOutputId]="node.id"
+                [fInputId]="node.id"
+                fOutputConnectableSide="right"
+                fInputConnectableSide="left"
+                [title]="node.title"
+                [url]="node.url"
+                [iconUrl]="node.iconUrl">
+            </app-knowledge-graph-node>
+            }
+        </f-canvas>
+    </f-flow>
+    }
+</div>
