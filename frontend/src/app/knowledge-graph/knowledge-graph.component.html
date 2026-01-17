@@ -1,4 +1,25 @@
 <div class="knowledge-graph">
+    <div class="knowledge-graph__header">
+        <h2>Knowledge Graph</h2>
+        @if (!isLoading()) {
+        <div class="knowledge-graph__stats">
+            <span class="stat">
+                <strong>{{ totalNodes() }}</strong> nodes
+            </span>
+            <span class="stat">
+                <strong>{{ totalEdges() }}</strong> connections
+            </span>
+            @if (getStatsEntries().length > 0) {
+            <div class="stat-details">
+                @for (stat of getStatsEntries(); track stat.label) {
+                <span class="stat-item">{{ stat.label }}: <strong>{{ stat.count }}</strong></span>
+                }
+            </div>
+            }
+        </div>
+        }
+    </div>
+
     @if (isLoading()) {
     <div class="knowledge-graph__loading">
         <p>Loading knowledge graph...</p>
@@ -14,7 +35,10 @@
         </f-background>
         <f-canvas>
             @for (edge of edges(); track edge.source + edge.target) {
-            <f-connection [fOutputId]="edge.source" [fInputId]="edge.target"></f-connection>
+            <f-connection 
+                [fOutputId]="edge.source" 
+                [fInputId]="edge.target"
+                fConnectionBehavior="bezier"></f-connection>
             }
 
             @for (node of nodes(); track node.id; let i = $index) {

@@ -7,17 +7,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-
-from neo4j_haystack import (
-    Neo4jDocumentStore,
-    Neo4jClientConfig,
-    Neo4jDynamicDocumentRetriever,
-)
-
 from src.common.models import DocumentSourceType, ResponseModel, GraphResponse
 from src.core.knowledge_index import KnowledgeIndex
+from src.core.document_chunk_writer import DocumentChunkWriter
+from src.core.chunk_retriever import ChunkRetriever
 from src.core.question_answering import QuestionAnswering
 from src.core.knowledge_graph_service import KnowledgeGraphService
+from src.core.relationship_manager import RelationshipManager
 
 from src.core.atlassian.jira_loader import JiraLoader
 from src.core.atlassian.confluence_loader import ConfluenceLoader
@@ -56,27 +52,21 @@ async def lifespan(app: FastAPI):
         token=os.getenv("GITHUB_TOKEN"),
     )
     # Init RAG pipeline
-    neo4j_document_store = Neo4jDocumentStore(
-        url=os.getenv("NEO4J_URL"),
-        username=os.getenv("NEO4J_USERNAME"),
-        password=os.getenv("NEO4J_PASSWORD"),
-        database="neo4j",
+    chunk_writer = DocumentChunkWriter(
+        neo4j_url=os.getenv("NEO4J_URL"),
+        neo4j_username=os.getenv("NEO4J_USERNAME"),
+        neo4j_password=os.getenv("NEO4J_PASSWORD"),
+        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
         embedding_dim=int(os.getenv("EMBEDDING_DIMENSION", "768")),
-        embedding_field="embedding",
-        index="document_embeddings",  # The name of the Vector Index in Neo4j
-        node_label="Document",
     )
-    # Create a Neo4J component for hybrid search
-    client_config = Neo4jClientConfig(
-        url=os.getenv("NEO4J_URL"),
-        username=os.getenv("NEO4J_USERNAME"),
-        password=os.getenv("NEO4J_PASSWORD"),
-        database=os.getenv("NEO4J_DATABASE", "neo4j"),
-    )
-    neo4j_embedding_retriever = Neo4jDynamicDocumentRetriever(
-        client_config=client_config,
-        runtime_parameters=["query_embedding"],
-        doc_node_name="doc",
+    # Create chunk retriever for querying embedded chunks
+    chunk_retriever = ChunkRetriever(
+        neo4j_url=os.getenv("NEO4J_URL"),
+        neo4j_username=os.getenv("NEO4J_USERNAME"),
+        neo4j_password=os.getenv("NEO4J_PASSWORD"),
+        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
+        index_name=os.getenv("NEO4J_INDEX", "chunk_embeddings"),
+        top_k=int(os.getenv("NEO4J_TOP_K", "5")),
     )
     # Create provider components centrally
     llm_generator = create_llm_generator()
@@ -84,14 +74,23 @@ async def lifespan(app: FastAPI):
     document_embedder = create_document_embedder()
 
     pipelines["rag"] = QuestionAnswering(
-        embedding_retriever=neo4j_embedding_retriever,
+        embedding_retriever=chunk_retriever,
         llm_generator=llm_generator,
         text_embedder=text_embedder,
-        index_name=os.getenv("NEO4J_INDEX", "document_embeddings"),
-        top_k=int(os.getenv("NEO4J_TOP_K", "5")),
     )
+    
+    # Initialize relationship manager for tracking document links
+    relationship_manager = RelationshipManager(
+        neo4j_url=os.getenv("NEO4J_URL"),
+        neo4j_username=os.getenv("NEO4J_USERNAME"),
+        neo4j_password=os.getenv("NEO4J_PASSWORD"),
+        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
+    )
+    
     pipelines["index"] = KnowledgeIndex(
-        document_store=neo4j_document_store, document_embedder=document_embedder
+        chunk_writer=chunk_writer,
+        document_embedder=document_embedder,
+        relationship_manager=relationship_manager,
     )
     pipelines["graph"] = KnowledgeGraphService(
         neo4j_url=os.getenv("NEO4J_URL"),
@@ -162,11 +161,35 @@ async def answer_question(body: AskRequest) -> ResponseModel:
     return result
 
 @app.get("/graph", response_model=GraphResponse)
-async def get_knowledge_graph() -> GraphResponse:
+async def get_knowledge_graph(limit: int = 100) -> GraphResponse:
     """
-    Fetch the knowledge graph with nodes and their relationships from Neo4j.
+    Fetch the knowledge graph with nodes and their REFERENCES relationships from Neo4j.
+    
+    Args:
+        limit: Maximum number of nodes to return (default: 100)
     """
-    nodes, edges = pipelines["graph"].fetch_graph(limit=100)
+    nodes, edges = pipelines["graph"].fetch_graph(limit=limit)
+    return GraphResponse(nodes=nodes, edges=edges)
+
+@app.get("/graph/stats")
+async def get_graph_stats():
+    """
+    Get statistics about relationships in the knowledge graph.
+    """
+    stats = pipelines["graph"].get_relationship_stats()
+    return {"relationships": stats}
+
+@app.get("/graph/document/{doc_id}")
+async def get_document_relationships(doc_id: str, depth: int = 1) -> GraphResponse:
+    """
+    Fetch a document and its related documents up to a certain depth.
+    
+    Args:
+        doc_id: Element ID of the document node
+        depth: How many relationship hops to traverse (default: 1, max: 3)
+    """
+    depth = min(max(1, depth), 3)  # Clamp between 1 and 3
+    nodes, edges = pipelines["graph"].fetch_document_relationships(doc_id, depth)
     return GraphResponse(nodes=nodes, edges=edges)
 
 @app.get("/icon")

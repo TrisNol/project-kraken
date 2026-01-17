@@ -3,6 +3,11 @@ from haystack.document_stores.types import DocumentStore
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.components.preprocessors import DocumentSplitter
+from typing import Optional
+from copy import deepcopy
+
+from src.core.relationship_manager import RelationshipManager
+from src.core.document_chunk_writer import DocumentChunkWriter
 
 class KrakenDocumentSplitter(DocumentSplitter):
     def split(self, document: Document):
@@ -57,40 +62,129 @@ class KrakenDocumentSplitter(DocumentSplitter):
 
 class KnowledgeIndex:
     indexing_pipeline: Pipeline = None
+    relationship_manager: Optional[RelationshipManager] = None
+    chunk_writer: Optional[DocumentChunkWriter] = None
 
-    def __init__(self, document_store: DocumentStore, document_embedder):
-        writer = DocumentWriter(document_store=document_store)
+    def __init__(
+        self, 
+        document_embedder,
+        relationship_manager: Optional[RelationshipManager] = None,
+        chunk_writer: Optional[DocumentChunkWriter] = None
+    ):
         splitter = KrakenDocumentSplitter()
-        writer = DocumentWriter(
-            document_store=document_store, policy=DuplicatePolicy.OVERWRITE
-        )
 
         # Construct pipeline
         self.indexing_pipeline = Pipeline()
         self.indexing_pipeline.add_component("splitter", splitter)
         self.indexing_pipeline.add_component("embedder", document_embedder)
-        self.indexing_pipeline.add_component("writer", writer)
+        
+        # Use custom chunk writer if provided
+        if chunk_writer:
+            self.chunk_writer = chunk_writer
+            self.indexing_pipeline.add_component("writer", chunk_writer)
+        
         self.indexing_pipeline.connect("splitter", "embedder")
         self.indexing_pipeline.connect("embedder", "writer")
+        
+        # Store relationship manager for creating document links
+        self.relationship_manager = relationship_manager
 
     def create_index(self, documents: list[Document]):
         # Filter out documents with less than 50 characters
         documents = [d for d in documents if getattr(d, "content", None) and len(str(d.content)) >= 50]
         if not documents:
             return
+        
+        # Index documents FIRST (creates Document + Chunk nodes in Neo4j)
         self.indexing_pipeline.run({"documents": documents})
+        
+        # Create relationships AFTER indexing (now MATCH queries can find the Document nodes)
+        if self.relationship_manager:
+            try:
+                stats = self.relationship_manager.create_relationships(documents)
+                print(f"Created relationships: {stats}")
+            except Exception as e:
+                print(f"Warning: Failed to create relationships: {e}")
+
+    def _remove_links_from_db(self):
+        """Remove links property from all Document nodes in Neo4j."""
+        if not self.chunk_writer:
+            return
+        
+        try:
+            from neo4j import GraphDatabase
+            driver = GraphDatabase.driver(
+                self.chunk_writer.neo4j_url,
+                auth=(self.chunk_writer.neo4j_username, self.chunk_writer.neo4j_password)
+            )
+            
+            with driver.session(database=self.chunk_writer.neo4j_database) as session:
+                result = session.run("""
+                    MATCH (d:Document)
+                    WHERE d.links IS NOT NULL
+                    REMOVE d.links
+                    RETURN count(d) as cleaned
+                """)
+                record = result.single()
+                if record:
+                    print(f"Cleaned links from {record['cleaned']} document nodes")
+            
+            driver.close()
+        except Exception as e:
+            print(f"Warning: Failed to clean links from database: {e}")
 
     def get_index_stats(self):
-        if not self.indexing_pipeline:
+        """Get statistics about indexed documents and chunks."""
+        if not self.chunk_writer:
             return {}
-        document_store: DocumentStore = self.indexing_pipeline.get_component(
-            "writer"
-        ).document_store
-        return document_store.count_documents()
+        
+        try:
+            from neo4j import GraphDatabase
+            driver = GraphDatabase.driver(
+                self.chunk_writer.neo4j_url,
+                auth=(self.chunk_writer.neo4j_username, self.chunk_writer.neo4j_password)
+            )
+            
+            with driver.session(database=self.chunk_writer.neo4j_database) as session:
+                result = session.run("""
+                    MATCH (d:Document)
+                    OPTIONAL MATCH (d)<-[:PART_OF]-(c:Chunk)
+                    RETURN count(DISTINCT d) as documents, count(c) as chunks
+                """)
+                record = result.single()
+                if record:
+                    return {
+                        "documents": record['documents'],
+                        "chunks": record['chunks']
+                    }
+            
+            driver.close()
+        except Exception as e:
+            print(f"Warning: Failed to get index stats: {e}")
+            return {}
 
     def clear_index(self):
-        if self.indexing_pipeline:
-            document_store: DocumentStore = self.indexing_pipeline.get_component(
-                "writer"
-            ).document_store
-            document_store.delete_documents([])
+        """Clear all Document and Chunk nodes from Neo4j."""
+        if not self.chunk_writer:
+            return
+        
+        try:
+            from neo4j import GraphDatabase
+            driver = GraphDatabase.driver(
+                self.chunk_writer.neo4j_url,
+                auth=(self.chunk_writer.neo4j_username, self.chunk_writer.neo4j_password)
+            )
+            
+            with driver.session(database=self.chunk_writer.neo4j_database) as session:
+                session.run("""
+                    MATCH (c:Chunk)
+                    DETACH DELETE c
+                """)
+                session.run("""
+                    MATCH (d:Document)
+                    DETACH DELETE d
+                """)
+            
+            driver.close()
+        except Exception as e:
+            print(f"Warning: Failed to clear index: {e}")

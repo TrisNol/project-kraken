@@ -5,6 +5,7 @@ from typing import Any
 from haystack import Document
 from src.common.models import ConfluenceMetadata, DocumentSourceType
 from src.core.atlassian import convert_to_markdown
+from src.core.link_extractor import LinkExtractor
 
 
 def map_to_confluence_doc(doc: Document) -> Document:
@@ -15,6 +16,7 @@ def map_to_confluence_doc(doc: Document) -> Document:
         last_updated=normalize_when(doc.meta.get("when")),
         page_id=doc.meta.get("id"),
         space_key=doc.meta.get("source").split("/")[5],
+        links=doc.meta.get("links"),
     )
     return Document(content=doc.content, meta=meta.model_dump())
 
@@ -113,11 +115,20 @@ class ConfluenceLoader:
                 # The get_all_pages_from_space response does not include lastModified
                 # consistently; fall back to the page 'version' or None
                 when = normalize_when(page.get("version", {}).get("when"))
+                
+                # Extract links from page content
+                links = LinkExtractor.extract_links_for_confluence(
+                    content=page_content,
+                    current_page_id=content_id,
+                    confluence_url=self.confluence.url
+                )
+                
                 metadata = {
                     "source": f"{self.confluence.url}/spaces/{space_key}/pages/{content_id}",
                     "when": when,
                     "id": content_id,
                     "title": title,
+                    "links": links,
                 }
 
                 document = Document(content=convert_to_markdown(page_content), meta=metadata)

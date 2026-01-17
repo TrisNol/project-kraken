@@ -57,8 +57,8 @@ export interface GraphResponse {
 export class KnowledgeGraphService {
   private readonly apiBase = environment.apiBase;
 
-  async fetchGraph(): Promise<GraphResponse> {
-    const url = `${this.apiBase}/graph`;
+  async fetchGraph(limit: number = 100): Promise<GraphResponse> {
+    const url = `${this.apiBase}/graph?limit=${limit}`;
 
     try {
       const res = await fetch(url, {
@@ -84,6 +84,60 @@ export class KnowledgeGraphService {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('Failed to fetch knowledge graph:', message);
+      return { nodes: [], edges: [] };
+    }
+  }
+
+  async fetchGraphStats(): Promise<{ relationships: Record<string, number> }> {
+    const url = `${this.apiBase}/graph/stats`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      return await res.json();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Failed to fetch graph stats:', message);
+      return { relationships: {} };
+    }
+  }
+
+  async fetchDocumentRelationships(docId: string, depth: number = 1): Promise<GraphResponse> {
+    const url = `${this.apiBase}/graph/document/${encodeURIComponent(docId)}?depth=${depth}`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      const data = (await res.json()) as GraphResponse;
+      
+      // Add iconUrl to each node
+      data.nodes = data.nodes.map(node => ({
+        ...node,
+        iconUrl: `${this.apiBase}/icon?type=${encodeURIComponent(node.type)}`
+      }));
+
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Failed to fetch document relationships:', message);
       return { nodes: [], edges: [] };
     }
   }

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Union
+from typing import List, Union, Optional, Dict, Any
 from enum import Enum
 
 class DocumentSourceType(str, Enum):
@@ -11,6 +11,10 @@ class BaseMetadata(BaseModel):
     source: str = Field(..., description="Source of the document")
     type: DocumentSourceType = Field(..., description="Type of the document source")
     last_updated: str = Field(..., description="Last updated timestamp")
+    links: Optional[Dict[str, Any]] = Field(
+        default=None, 
+        description="Extracted links and references (temporary, used only for relationship creation, not persisted)"
+    )
 
 class JiraMetadata(BaseMetadata):
     issue_key: str = Field(..., description="JIRA issue key")

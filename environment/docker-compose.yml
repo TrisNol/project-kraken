@@ -1,18 +1,18 @@
 services:
-  ollama:
-    build:
-      context: ./ollama
-      dockerfile: Dockerfile
-    container_name: ollama
-    ports:
-      - 7869:11434
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+  # ollama:
+  #   build:
+  #     context: ./ollama
+  #     dockerfile: Dockerfile
+  #   container_name: ollama
+  #   ports:
+  #     - 7869:11434
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
   neo4j:
     image: neo4j:5.26.12-community-ubi9
     container_name: neo4j

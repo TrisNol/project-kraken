@@ -7,6 +7,7 @@ from haystack import Document
 from git import Repo
 
 from src.common.models import GitHubMetadata, DocumentSourceType
+from src.core.link_extractor import LinkExtractor
 
 
 class GitHubLoader:
@@ -41,6 +42,13 @@ class GitHubLoader:
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         content = f.read()
                     relative_path = file_path.relative_to(base_path)
+                    
+                    # Extract links from file content
+                    links = LinkExtractor.extract_links_for_github(
+                        content=content,
+                        current_repo=repo_name
+                    )
+                    
                     metadata = GitHubMetadata(
                         source=repo,
                         type=DocumentSourceType.GITHUB,
@@ -49,6 +57,7 @@ class GitHubLoader:
                         file_path=str(relative_path),
                         commit_hash=Repo(temp_dir).head.object.hexsha,  # Latest commit hash
                         ref=self.ref or "",
+                        links=links,
                     )
                     documents.append(Document(content=content, meta=metadata.model_dump()))
 
