@@ -38,6 +38,29 @@ export class ChatComponent {
                 if (el) el.scrollTop = el.scrollHeight;
             });
         });
+        
+        // Load chat history on initialization
+        this.loadChatHistory();
+    }
+
+    private async loadChatHistory() {
+        try {
+            const history = await this.chat.getChatHistory();
+            if (history.length > 0) {
+                this.messages.set(history);
+            }
+        } catch (err) {
+            console.error('Failed to load chat history:', err);
+        }
+    }
+
+    async clearHistory() {
+        try {
+            await this.chat.clearChatHistory();
+            this.messages.set([]);
+        } catch (err) {
+            console.error('Failed to clear chat history:', err);
+        }
     }
 
     // Note: Popover (OverlayPanel) is toggled from template using a template reference variable

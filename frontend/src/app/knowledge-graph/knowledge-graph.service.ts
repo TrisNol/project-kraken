@@ -66,6 +66,7 @@ export class KnowledgeGraphService {
         headers: {
           'Accept': 'application/json',
         },
+        credentials: 'include',
       });
 
       if (!res.ok) {
@@ -97,6 +98,7 @@ export class KnowledgeGraphService {
         headers: {
           'Accept': 'application/json',
         },
+        credentials: 'include',
       });
 
       if (!res.ok) {
@@ -120,6 +122,7 @@ export class KnowledgeGraphService {
         headers: {
           'Accept': 'application/json',
         },
+        credentials: 'include',
       });
 
       if (!res.ok) {

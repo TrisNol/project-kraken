@@ -407,3 +407,98 @@ for doc in results["documents"]:
 3. **Chunk Overlap**: Track overlapping chunks for better context
 4. **Hybrid Search**: Combine vector search with keyword search on chunks
 5. **Document Versioning**: Track document versions and changes over time
+
+## Chat History & Session Management Implementation
+
+### Session Tracking Architecture
+
+**SessionMiddleware** (`src/main.py`):
+- Implements Starlette `BaseHTTPMiddleware`
+- Checks for existing `X-Session-ID` in request cookies
+- Generates UUID v4 if no session exists
+- Stores session ID in `request.state.session_id` for endpoint access
+- Sets HTTP-only cookie with:
+  - 30-day expiration (`max_age=86400 * 30`)
+  - `samesite="lax"` for CSRF protection
+  - `secure=False` (set to `True` in production with HTTPS)
+- Also adds `X-Session-ID` response header for visibility
+
+### In-Memory Chat Storage
+
+**ChatMemory Component** (`src/core/chat_memory.py`):
+
+**Data Structures**:
+```python
+class ChatHistoryMessage(BaseModel):
+    role: str  # 'user' or 'assistant'
+    content: str
+    timestamp: datetime
+    sources: Optional[List[Dict[str, Any]]]  # Full source metadata
+
+class ChatMemory:
+    _memory: Dict[str, List[ChatHistoryMessage]]  # session_id -> messages
+    _lock: Lock  # Thread-safe operations
+    max_messages_per_session: int  # Default: 50
+```
+
+**Key Methods**:
+- `add_message(session_id, role, content, sources)`: Store message with optional sources
+- `get_history(session_id, limit)`: Retrieve conversation history
+- `get_context_for_rag(session_id, max_history)`: Format history for LLM context
+- `clear_session(session_id)`: Remove all messages for a session
+- `get_session_count()`: Get total active sessions
+
+**Thread Safety**:
+All operations use `self._lock` to ensure concurrent request safety.
+
+**Memory Management**:
+Automatic FIFO truncation when `max_messages_per_session` exceeded:
+```python
+if len(self._memory[session_id]) > self.max_messages_per_session:
+    self._memory[session_id] = self._memory[session_id][-self.max_messages_per_session:]
+```
+
+### Conversational RAG Pipeline
+
+**Query Rewriting Architecture**:
+
+The RAG pipeline implements a two-stage LLM approach:
+
+1. **Query Rewriting Stage**: Converts contextual questions to standalone queries
+2. **Answer Generation Stage**: Generates final answer with full context
+
+**Pipeline Components** (`src/core/question_answering.py`):
+
+```mermaid
+graph LR
+    Q[Question] --> QR[Query Rewriter]
+    CH[Chat History] --> QR
+    QR --> RLLM[Rewrite LLM]
+    RLLM --> TE[Text Extractor]
+    TE --> Emb[Text Embedder]
+    Emb --> Ret[Retriever]
+    Ret --> Docs[Documents]
+    Docs --> APB[Answer Prompt]
+    Q --> APB
+    CH --> APB
+    APB --> ALLM[Answer LLM]
+    ALLM --> Ans[Answer]
+```
+
+### Security & Privacy
+
+**Session Isolation**:
+- Each session ID is a cryptographically random UUID
+- No cross-session data access
+- Session-scoped storage prevents user data mixing
+
+**Cookie Security**:
+- `httponly=True`: Prevents JavaScript access (XSS protection)
+- `samesite="lax"`: CSRF protection
+- Should enable `secure=True` in production (HTTPS only)
+
+**Data Lifecycle**:
+- Sessions persist only in application memory
+- Application restart clears all history
+- No persistent storage of conversations (privacy by design)
+- Users can manually clear via `/chat/clear` endpoint

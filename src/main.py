@@ -1,11 +1,13 @@
 import os
+import uuid
 
 from dotenv import load_dotenv
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.common.models import DocumentSourceType, ResponseModel, GraphResponse
 from src.core.knowledge_index import KnowledgeIndex
@@ -18,6 +20,7 @@ from src.core.relationship_manager import RelationshipManager
 from src.core.atlassian.jira_loader import JiraLoader
 from src.core.atlassian.confluence_loader import ConfluenceLoader
 from src.core.git.github_loader import GitHubLoader
+from src.core.chat_memory import ChatMemory
 
 from src.core.settings import (
     create_llm_generator,
@@ -29,6 +32,7 @@ load_dotenv()
 
 pipelines = {}
 loaders = {}
+chat_memory = ChatMemory(max_messages_per_session=50)
 
 
 @asynccontextmanager
@@ -117,6 +121,40 @@ app.add_middleware(
 )
 
 
+class SessionMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Check if session ID exists in cookies
+        session_id = request.cookies.get("X-Session-ID")
+        
+        # Generate new session ID if not present
+        if not session_id:
+            session_id = str(uuid.uuid4())
+        
+        # Store session ID in request state for potential use in endpoints
+        request.state.session_id = session_id
+        
+        # Call the next middleware/endpoint
+        response = await call_next(request)
+        
+        # Set the session ID cookie on the response
+        response.set_cookie(
+            key="X-Session-ID",
+            value=session_id,
+            httponly=True,
+            samesite="lax",
+            secure=False,  # Set to True in production with HTTPS
+            max_age=86400 * 30,  # 30 days
+        )
+        
+        # Also set it as a response header for visibility
+        response.headers["X-Session-ID"] = session_id
+        
+        return response
+
+
+app.add_middleware(SessionMiddleware)
+
+
 @app.get("/")
 async def read_root():
     return {"Hello": "World"}
@@ -153,12 +191,62 @@ class AskRequest(BaseModel):
     sources: list[str] = []
 
 @app.post("/ask", response_model=ResponseModel)
-async def answer_question(body: AskRequest) -> ResponseModel:
+async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
+    # Retrieve and print the session ID
+    session_id = request.state.session_id
+    print(f"[Session ID: {session_id}] Processing question: {body.question[:50]}...")
+    
+    # Store user message in chat memory
+    chat_memory.add_message(session_id, "user", body.question)
+    
+    # Get conversation context for RAG
+    conversation_context = chat_memory.get_context_for_rag(session_id, max_history=4)
+    
     # Normalize sources
     sources = body.sources or []
 
-    result = pipelines["rag"].answer_question(body.question, sources)
+    result = pipelines["rag"].answer_question(body.question, sources, conversation_context)
+    
+    # Convert source documents to dict format for storage
+    sources_dict = [doc.model_dump() for doc in result.source_documents]
+    
+    # Store assistant response with sources in chat memory
+    chat_memory.add_message(session_id, "assistant", result.answer, sources_dict)
+    
     return result
+
+@app.get("/chat/history")
+async def get_chat_history(request: Request):
+    """
+    Retrieve chat history for the current session.
+    Used when frontend reloads to restore conversation.
+    """
+    session_id = request.state.session_id
+    history = chat_memory.get_history(session_id)
+    
+    return {
+        "session_id": session_id,
+        "messages": [
+            {
+                "role": msg.role,
+                "content": msg.content,
+                "timestamp": msg.timestamp.isoformat(),
+                "sources": msg.sources
+            }
+            for msg in history
+        ]
+    }
+
+@app.post("/chat/clear")
+async def clear_chat_history(request: Request):
+    """
+    Clear chat history for the current session.
+    """
+    session_id = request.state.session_id
+    chat_memory.clear_session(session_id)
+    print(f"[Session ID: {session_id}] Chat history cleared")
+    
+    return {"status": "cleared", "session_id": session_id}
 
 @app.get("/graph", response_model=GraphResponse)
 async def get_knowledge_graph(limit: int = 100) -> GraphResponse:

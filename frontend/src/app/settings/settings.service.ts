@@ -7,7 +7,11 @@ export class SettingsService {
 
   async ingest(): Promise<any> {
     const url = `${this.apiBase}/index/create`;
-    const res = await fetch(url, { method: 'POST', headers: { Accept: 'application/json' } });
+    const res = await fetch(url, { 
+      method: 'POST', 
+      headers: { Accept: 'application/json' },
+      credentials: 'include'
+    });
     if (!res.ok) throw new Error(`Ingest request failed with status ${res.status}`);
     try {
       return await res.json();
@@ -18,7 +22,11 @@ export class SettingsService {
 
   async clear(): Promise<any> {
     const url = `${this.apiBase}/index/clear`;
-    const res = await fetch(url, { method: 'POST', headers: { Accept: 'application/json' } });
+    const res = await fetch(url, { 
+      method: 'POST', 
+      headers: { Accept: 'application/json' },
+      credentials: 'include'
+    });
     if (!res.ok) throw new Error(`Clear request failed with status ${res.status}`);
     try {
       return await res.json();
