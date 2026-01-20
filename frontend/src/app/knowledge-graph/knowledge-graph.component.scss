@@ -81,15 +81,6 @@
 }
 
 ::ng-deep {
-    .f-background {
-        line {
-            stroke: var(--background-element-color);
-        }
-
-        circle {
-            fill: var(--background-element-color);
-        }
-    }
 
     // Define SVG arrow marker
     svg defs {

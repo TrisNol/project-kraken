@@ -31,7 +31,7 @@
     } @else {
     <f-flow fDraggable>
         <f-background>
-            <f-circle-pattern></f-circle-pattern>
+            <f-circle-pattern [color]="'#555555'"></f-circle-pattern>
         </f-background>
         <f-canvas>
             @for (edge of edges(); track edge.source + edge.target) {
