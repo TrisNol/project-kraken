@@ -1,0 +1,23 @@
+.settings {
+  padding: 1rem;
+
+  .actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .status {
+    background: #ffffff;
+    padding: 0.5rem;
+    border-radius: 4px;
+    color: #111111; /* force dark text to avoid white-on-white issues */
+
+    pre.message {
+      color: #111111;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      margin: 0;
+    }
+  }
+}

@@ -1,0 +1,151 @@
+.chat {
+	height: 100%;
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	gap: 0.75rem;
+	padding: 1rem;
+}
+
+.chat__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+	
+	.clear-btn {
+		background: transparent;
+		border: 1px solid #e5e7eb;
+		border-radius: 0.375rem;
+		padding: 0.375rem 0.5rem;
+		cursor: pointer;
+		color: #6b7280;
+		font-size: 0.875rem;
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		transition: all 0.2s;
+
+		&:hover {
+			background: #f9fafb;
+			color: #dc2626;
+			border-color: #fecaca;
+		}
+
+		&:active {
+			background: #f3f4f6;
+		}
+
+		i {
+			font-size: 0.875rem;
+		}
+	}
+}
+
+.chat__messages {
+	overflow: auto;
+	padding: 0.25rem 0.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.bubble {
+	max-width: min(720px, 85%);
+	padding: 0.6rem 0.75rem;
+	border-radius: 0.75rem;
+	background: #f3f4f6;
+	color: #111827;
+	box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+	align-self: flex-start;
+
+	&--user {
+		background: #2563eb;
+		color: #fff;
+		align-self: flex-end;
+	}
+
+	&--assistant {
+		background: #e5e7eb;
+	}
+
+	&__content { white-space: pre-wrap; }
+}
+
+.typing {
+	display: inline-flex;
+	gap: 0.3rem;
+	span {
+		width: 6px; height: 6px; border-radius: 50%;
+		background: #6b7280; opacity: 0.7;
+		animation: blink 1.2s infinite ease-in-out both;
+	}
+	span:nth-child(2) { animation-delay: 0.2s; }
+	span:nth-child(3) { animation-delay: 0.4s; }
+}
+
+@keyframes blink { 0%, 80%, 100% { opacity: 0.3 } 40% { opacity: 1 } }
+
+.chat__input {
+	display: flex;
+	gap: 0.5rem;
+	input[type="text"] {
+		flex: 1;
+		border: 1px solid #e5e7eb;
+		border-radius: 0.5rem;
+		padding: 0.6rem 0.75rem;
+		font: inherit;
+	}
+	button[type="submit"] {
+		padding: 0.6rem 0.9rem;
+		border: none;
+		border-radius: 0.5rem;
+		background: #111827;
+		color: #fff;
+		cursor: pointer;
+		&:disabled { opacity: 0.6; cursor: not-allowed; }
+	}
+}
+
+.refs {
+	margin-top: 0.5rem;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+
+.ref {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	background: #fff;
+	border: 1px solid #e5e7eb;
+	border-radius: 999px;
+	padding: 0.25rem 0.6rem;
+	text-decoration: none;
+	color: inherit;
+	transition: background 0.15s ease;
+	&:hover { background: #f9fafb; }
+}
+
+.ref__icon {
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	/* Default sizing for both CSS-mask icons and real image icons */
+	width: 14px;
+	height: 14px;
+	display: inline-block;
+	vertical-align: middle;
+	object-fit: contain;
+	background: transparent; /* ensure PNG transparency shows through */
+
+	/* When the icon is an <img>, ensure transparency shows and it fills the slot */
+	&[src], &.img, img {
+		background: transparent;
+		width: 14px;
+		height: 14px;
+		object-fit: contain;
+		display: inline-block;
+	}
+}
