@@ -2,10 +2,7 @@ name: Documentation
 on:
   push:
     branches:
-      - master
       - main
-      - ci/mkdocs
-  workflow_dispatch:
 permissions:
   contents: write
   pages: write
