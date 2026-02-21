@@ -1,0 +1,26 @@
+[project]
+name = "project-kraken"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "TrisNol",email = "contact@trisnol.dev"}
+]
+license = {text = "Apache-2.0 License"}
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "python-dotenv (>=1.1.1,<2.0.0)",
+    "atlassian-python-api (>=4.0.7,<5.0.0)",
+    "haystack-ai (>=2.18.1,<3.0.0)",
+    "ollama-haystack (>=5.2.0,<6.0.0)",
+    "neo4j-haystack (>=2.2.1,<3.0.0)",
+    "fastapi[standard] (>=0.118.0,<0.119.0)",
+    "gitingest (>=0.3.1,<0.4.0)",
+    "gitpython (>=3.1.45,<4.0.0)",
+    "markdownify (>=1.2.0,<2.0.0)",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

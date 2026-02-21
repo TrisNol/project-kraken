@@ -1,0 +1,30 @@
+services:
+  # ollama:
+  #   build:
+  #     context: ./ollama
+  #     dockerfile: Dockerfile
+  #   container_name: ollama
+  #   ports:
+  #     - 7869:11434
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  neo4j:
+    image: neo4j:5.26.12-community-ubi9
+    container_name: neo4j
+    volumes:
+      - neo4j_config:/config
+      - neo4j_data:/data
+    environment:
+        - NEO4J_AUTH=neo4j/your_password
+        - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+volumes:
+  neo4j_data:
+  neo4j_config:
