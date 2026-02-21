@@ -499,14 +499,14 @@ files = [
 
 [[package]]
 name = "haystack-ai"
-version = "2.18.1"
+version = "2.24.1"
 description = "LLM framework to build customizable, production-ready LLM applications. Connect components (models, vector DBs, file converters) to pipelines or agents that can interact with your data."
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "haystack_ai-2.18.1-py3-none-any.whl", hash = "sha256:c17f546df5d56a936e2a815354b86dcbe740892fd37aff67c1ecc792bb93e526"},
-    {file = "haystack_ai-2.18.1.tar.gz", hash = "sha256:e734369ae5064b4f1647f1001e1a28584955be08df673a32cd36877126dbcc77"},
+    {file = "haystack_ai-2.24.1-py3-none-any.whl", hash = "sha256:2bd3cb3e89ba604b3e247310d85b7892a119cadc3e7db490db9011fd469bc7fa"},
+    {file = "haystack_ai-2.24.1.tar.gz", hash = "sha256:5173b4e0f978dca4fa9a72589adb2fb0df7b3973e9d4c2c4dede1adb1959eb2e"},
 ]
 
 [package.dependencies]
@@ -519,7 +519,7 @@ lazy-imports = "*"
 more-itertools = "*"
 networkx = "*"
 numpy = "*"
-openai = ">=1.56.1"
+openai = ">=1.99.2"
 posthog = "!=3.12.0"
 pydantic = "*"
 python-dateutil = "*"
@@ -1218,19 +1218,19 @@ pydantic = ">=2.9"
 
 [[package]]
 name = "ollama-haystack"
-version = "5.2.0"
+version = "5.3.0"
 description = "An integration between the Ollama LLM framework and Haystack"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "ollama_haystack-5.2.0-py3-none-any.whl", hash = "sha256:9644bdbac85c135280678accf85c5fa0216d457612290bf1d401232ee241ebc0"},
-    {file = "ollama_haystack-5.2.0.tar.gz", hash = "sha256:e7600a08c06adf624ebfeb7a3249b5f121a7360c48045efa6972ac2ca5efb2e8"},
+    {file = "ollama_haystack-5.3.0-py3-none-any.whl", hash = "sha256:1e07a9b5b66765422ce5a73e8bb60f51f41e3bad8e740e370a3d2276a83bf0ae"},
+    {file = "ollama_haystack-5.3.0.tar.gz", hash = "sha256:c29d92471e25901e19d10a024d4cf17cd2ddcb8ba9366001bfa17260ed1bced2"},
 ]
 
 [package.dependencies]
-haystack-ai = ">=2.17.1"
-ollama = ">=0.4.0"
+haystack-ai = ">=2.19.0"
+ollama = ">=0.5.0"
 pydantic = "*"
 
 [[package]]
