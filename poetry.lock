@@ -499,14 +499,14 @@ files = [
 
 [[package]]
 name = "haystack-ai"
-version = "2.18.1"
+version = "2.24.1"
 description = "LLM framework to build customizable, production-ready LLM applications. Connect components (models, vector DBs, file converters) to pipelines or agents that can interact with your data."
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "haystack_ai-2.18.1-py3-none-any.whl", hash = "sha256:c17f546df5d56a936e2a815354b86dcbe740892fd37aff67c1ecc792bb93e526"},
-    {file = "haystack_ai-2.18.1.tar.gz", hash = "sha256:e734369ae5064b4f1647f1001e1a28584955be08df673a32cd36877126dbcc77"},
+    {file = "haystack_ai-2.24.1-py3-none-any.whl", hash = "sha256:2bd3cb3e89ba604b3e247310d85b7892a119cadc3e7db490db9011fd469bc7fa"},
+    {file = "haystack_ai-2.24.1.tar.gz", hash = "sha256:5173b4e0f978dca4fa9a72589adb2fb0df7b3973e9d4c2c4dede1adb1959eb2e"},
 ]
 
 [package.dependencies]
@@ -519,7 +519,7 @@ lazy-imports = "*"
 more-itertools = "*"
 networkx = "*"
 numpy = "*"
-openai = ">=1.56.1"
+openai = ">=1.99.2"
 posthog = "!=3.12.0"
 pydantic = "*"
 python-dateutil = "*"
