@@ -1,4 +1,4 @@
-# Document/Chunk Architecture Refactoring
+# Architecture
 
 ## Overview
 The knowledge base has been refactored to implement a two-tier persistence model in Neo4j:
