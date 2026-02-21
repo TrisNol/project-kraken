@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 from collections import defaultdict
@@ -9,7 +9,7 @@ class ChatHistoryMessage(BaseModel):
     """Represents a single message in the chat history"""
     role: str = Field(..., description="Role of the message sender (user or assistant)")
     content: str = Field(..., description="Content of the message")
-    timestamp: datetime = Field(default_factory=datetime.now, description="When the message was created")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When the message was created")
     sources: Optional[List[Dict[str, Any]]] = Field(default=None, description="Source documents used for this message")
     
 

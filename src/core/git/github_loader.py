@@ -49,13 +49,14 @@ class GitHubLoader:
                         current_repo=repo_name
                     )
                     
+                    repo_object = Repo(temp_dir)
                     metadata = GitHubMetadata(
                         source=repo,
                         type=DocumentSourceType.GITHUB,
-                        last_updated=Repo(temp_dir).git.log('-1', '--format=%ai', '--', str(file_path)).strip(),  # Last commit date for the file
+                        last_updated=repo_object.git.log('-1', '--format=%ai', '--', str(file_path)).strip(),  # Last commit date for the file
                         repo_name=repo_name,
                         file_path=str(relative_path),
-                        commit_hash=Repo(temp_dir).head.object.hexsha,  # Latest commit hash
+                        commit_hash=repo_object.head.object.hexsha,  # Latest commit hash
                         ref=self.ref or "",
                         links=links,
                     )

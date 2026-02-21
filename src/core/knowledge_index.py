@@ -1,25 +1,21 @@
 from haystack import Document, Pipeline
-from haystack.document_stores.types import DocumentStore
-from haystack.components.writers import DocumentWriter
-from haystack.document_stores.types import DuplicatePolicy
 from haystack.components.preprocessors import DocumentSplitter
 from typing import Optional
-from copy import deepcopy
 
 from src.core.relationship_manager import RelationshipManager
 from src.core.document_chunk_writer import DocumentChunkWriter
 
 class KrakenDocumentSplitter(DocumentSplitter):
     def split(self, document: Document):
-        meta_type = document.meta.get("type", "")
+        meta_type = document.meta.get("type", "").upper()
 
-        if meta_type == "Confluence":
+        if meta_type == "CONFLUENCE":
             # Split at chapters with an overlap
             return self.split_markdown_chapters_with_overlap(document)
-        elif meta_type == "Jira":
+        elif meta_type == "JIRA":
             # Split at chapters without overlap
             return self.split_markdown_chapters(document)
-        elif meta_type == "GitHub":
+        elif meta_type == "GITHUB":
             # Only split if really necessary
             return self.split_if_necessary(document)
         else:

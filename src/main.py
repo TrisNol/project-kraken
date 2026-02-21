@@ -42,13 +42,13 @@ async def lifespan(app: FastAPI):
         url=os.getenv("JIRA_URL"),
         username=os.getenv("JIRA_USERNAME"),
         api_key=os.getenv("JIRA_API_KEY"),
-        projects=os.getenv("JIRA_PROJECTS").split(","),
+        projects=os.getenv("JIRA_PROJECTS", "").split(","),
     )
     loaders["confluence"] = ConfluenceLoader(
         url=os.getenv("CONFLUENCE_URL"),
         username=os.getenv("CONFLUENCE_USERNAME"),
         api_key=os.getenv("CONFLUENCE_API_KEY"),
-        spaces=os.getenv("CONFLUENCE_SPACES").split(","),
+        spaces=os.getenv("CONFLUENCE_SPACES", "").split(","),
     )
     loaders["github"] = GitHubLoader(
         repositories=os.getenv("GITHUB_REPOSITORIES", "").split(","),
@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
         llm_generator=llm_generator,
         text_embedder=text_embedder,
     )
-    
+
     # Initialize relationship manager for tracking document links
     relationship_manager = RelationshipManager(
         neo4j_url=os.getenv("NEO4J_URL"),
@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
         neo4j_password=os.getenv("NEO4J_PASSWORD"),
         neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
     )
-    
+
     pipelines["index"] = KnowledgeIndex(
         chunk_writer=chunk_writer,
         document_embedder=document_embedder,
@@ -100,7 +100,7 @@ async def lifespan(app: FastAPI):
         neo4j_url=os.getenv("NEO4J_URL"),
         neo4j_username=os.getenv("NEO4J_USERNAME"),
         neo4j_password=os.getenv("NEO4J_PASSWORD"),
-        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j")
+        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
     )
     yield
     # Clean up before shutdown
@@ -125,17 +125,17 @@ class SessionMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Check if session ID exists in cookies
         session_id = request.cookies.get("X-Session-ID")
-        
+
         # Generate new session ID if not present
         if not session_id:
             session_id = str(uuid.uuid4())
-        
+
         # Store session ID in request state for potential use in endpoints
         request.state.session_id = session_id
-        
+
         # Call the next middleware/endpoint
         response = await call_next(request)
-        
+
         # Set the session ID cookie on the response
         response.set_cookie(
             key="X-Session-ID",
@@ -145,10 +145,10 @@ class SessionMiddleware(BaseHTTPMiddleware):
             secure=False,  # Set to True in production with HTTPS
             max_age=86400 * 30,  # 30 days
         )
-        
+
         # Also set it as a response header for visibility
         response.headers["X-Session-ID"] = session_id
-        
+
         return response
 
 
@@ -186,34 +186,40 @@ async def clear_index():
 
 
 from pydantic import BaseModel
+
+
 class AskRequest(BaseModel):
     question: str
     sources: list[str] = []
+
 
 @app.post("/ask", response_model=ResponseModel)
 async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
     # Retrieve and print the session ID
     session_id = request.state.session_id
     print(f"[Session ID: {session_id}] Processing question: {body.question[:50]}...")
-    
+
     # Store user message in chat memory
     chat_memory.add_message(session_id, "user", body.question)
-    
+
     # Get conversation context for RAG
     conversation_context = chat_memory.get_context_for_rag(session_id, max_history=4)
-    
+
     # Normalize sources
     sources = body.sources or []
 
-    result = pipelines["rag"].answer_question(body.question, sources, conversation_context)
-    
+    result = pipelines["rag"].answer_question(
+        body.question, sources, conversation_context
+    )
+
     # Convert source documents to dict format for storage
     sources_dict = [doc.model_dump() for doc in result.source_documents]
-    
+
     # Store assistant response with sources in chat memory
     chat_memory.add_message(session_id, "assistant", result.answer, sources_dict)
-    
+
     return result
+
 
 @app.get("/chat/history")
 async def get_chat_history(request: Request):
@@ -223,7 +229,7 @@ async def get_chat_history(request: Request):
     """
     session_id = request.state.session_id
     history = chat_memory.get_history(session_id)
-    
+
     return {
         "session_id": session_id,
         "messages": [
@@ -231,11 +237,12 @@ async def get_chat_history(request: Request):
                 "role": msg.role,
                 "content": msg.content,
                 "timestamp": msg.timestamp.isoformat(),
-                "sources": msg.sources
+                "sources": msg.sources,
             }
             for msg in history
-        ]
+        ],
     }
+
 
 @app.post("/chat/clear")
 async def clear_chat_history(request: Request):
@@ -245,19 +252,21 @@ async def clear_chat_history(request: Request):
     session_id = request.state.session_id
     chat_memory.clear_session(session_id)
     print(f"[Session ID: {session_id}] Chat history cleared")
-    
+
     return {"status": "cleared", "session_id": session_id}
+
 
 @app.get("/graph", response_model=GraphResponse)
 async def get_knowledge_graph(limit: int = 100) -> GraphResponse:
     """
     Fetch the knowledge graph with nodes and their REFERENCES relationships from Neo4j.
-    
+
     Args:
         limit: Maximum number of nodes to return (default: 100)
     """
     nodes, edges = pipelines["graph"].fetch_graph(limit=limit)
     return GraphResponse(nodes=nodes, edges=edges)
+
 
 @app.get("/graph/stats")
 async def get_graph_stats():
@@ -267,11 +276,12 @@ async def get_graph_stats():
     stats = pipelines["graph"].get_relationship_stats()
     return {"relationships": stats}
 
+
 @app.get("/graph/document/{doc_id}")
 async def get_document_relationships(doc_id: str, depth: int = 1) -> GraphResponse:
     """
     Fetch a document and its related documents up to a certain depth.
-    
+
     Args:
         doc_id: Element ID of the document node
         depth: How many relationship hops to traverse (default: 1, max: 3)
@@ -279,6 +289,7 @@ async def get_document_relationships(doc_id: str, depth: int = 1) -> GraphRespon
     depth = min(max(1, depth), 3)  # Clamp between 1 and 3
     nodes, edges = pipelines["graph"].fetch_document_relationships(doc_id, depth)
     return GraphResponse(nodes=nodes, edges=edges)
+
 
 @app.get("/icon")
 async def get_icon(type: DocumentSourceType):
