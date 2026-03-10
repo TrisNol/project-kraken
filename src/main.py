@@ -7,9 +7,19 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from haystack.dataclasses import ChatMessage
+from haystack.tools import ComponentTool
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.common.models import DocumentSourceType, ResponseModel, GraphResponse
+from src.common.models import (
+    DocumentSourceType,
+    ResponseModel,
+    GraphResponse,
+    BaseMetadata,
+    JiraMetadata,
+    ConfluenceMetadata,
+    GitHubMetadata,
+)
 from src.core.knowledge_index import KnowledgeIndex
 from src.core.document_chunk_writer import DocumentChunkWriter
 from src.core.chunk_retriever import ChunkRetriever
@@ -77,11 +87,11 @@ async def lifespan(app: FastAPI):
     text_embedder = create_text_embedder()
     document_embedder = create_document_embedder()
 
-    pipelines["rag"] = QuestionAnswering(
-        embedding_retriever=chunk_retriever,
-        llm_generator=llm_generator,
-        text_embedder=text_embedder,
-    )
+    # pipelines["rag"] = QuestionAnswering(
+    #     embedding_retriever=chunk_retriever,
+    #     llm_generator=llm_generator,
+    #     text_embedder=text_embedder,
+    # )
 
     # Initialize relationship manager for tracking document links
     relationship_manager = RelationshipManager(
@@ -102,6 +112,45 @@ async def lifespan(app: FastAPI):
         neo4j_password=os.getenv("NEO4J_PASSWORD"),
         neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
     )
+
+    ###### TO BE MOVED ######
+    from haystack.components.agents import Agent
+    from haystack.components.generators.utils import print_streaming_chunk
+    from haystack.components.generators.chat import OpenAIChatGenerator
+
+    from src.tools.rag_search_tool import RAGSearch
+
+    rag_tool = ComponentTool(
+        component=RAGSearch(
+            embedding_retriever=chunk_retriever,
+            text_embedder=text_embedder,
+        ),
+        name="rag_search_tool",
+        description="Search in the central RAG index containing informations of various sources.",
+        outputs_to_state={"documents": {"source": "documents"}},
+    )
+
+    kraken_agent = Agent(
+        chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
+        system_prompt="""
+        You are Project Kraken, an AI assistant built on-top off a central knowledge base containing information about an enterprise's documentation, processes, and data.
+        You will have access to a mulititude of tools containing different sets of informations, and your task is to use these tools to answer user questions as accurately as possible.
+        Always use the tools at your disposal to find the most accurate and up-to-date information, and only answer questions based on the information you find in the tools. Do not make up answers or hallucinate information that is not present in the tools. 
+        If you cannot find the answer to a question using the tools at your disposal, respond with a follow-up question asking for more information or clarification from the user.
+        """,
+        tools=[
+            rag_tool  # Search through the vector DB --> Extend with filters for documents types
+            # graph_query_tool # Search through the knowledge graph/vector DB for documuments using cypher queries --> fast lookup with information retrieved from the users' text input
+            # filter_docs_tool # Using the documents currently in scope, filter out irrelevant documents based on the user's question to narrow down the context and information available for answering the question
+            # fetch_neighbors_tool # Using the documents currently in scope, fetch related documents from the graph to expand the context and information available for answering the question
+        ],
+        state_schema={"documents": {"type": list}},
+        streaming_callback=print_streaming_chunk,
+        max_agent_steps=3
+    )
+    pipelines["agent"] = kraken_agent
+    ###### TO BE MOVED ######
+
     yield
     # Clean up before shutdown
     pipelines.clear()
@@ -193,6 +242,18 @@ class AskRequest(BaseModel):
     sources: list[str] = []
 
 
+def _map_metadata(meta: dict) -> BaseMetadata:
+    doc_type = meta.get("type")
+    if doc_type == "JIRA":
+        return JiraMetadata(**meta)
+    elif doc_type == "CONFLUENCE":
+        return ConfluenceMetadata(**meta)
+    elif doc_type == "GITHUB":
+        return GitHubMetadata(**meta)
+    else:
+        raise ValueError(f"Unknown document type: {doc_type}")
+
+
 @app.post("/ask", response_model=ResponseModel)
 async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
     # Retrieve and print the session ID
@@ -208,17 +269,22 @@ async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
     # Normalize sources
     sources = body.sources or []
 
-    result = pipelines["rag"].answer_question(
-        body.question, sources, conversation_context
+    result = pipelines["agent"].run(
+        messages=[ChatMessage.from_user(body.question)],
     )
-
-    # Convert source documents to dict format for storage
-    sources_dict = [doc.model_dump() for doc in result.source_documents]
+    print(result)
+    # Convert source documents to typed metadata dicts for storage
+    sources_dict = [_map_metadata(doc.meta).model_dump() for doc in result["documents"]]
 
     # Store assistant response with sources in chat memory
-    chat_memory.add_message(session_id, "assistant", result.answer, sources_dict)
+    chat_memory.add_message(
+        session_id, "assistant", result["last_message"].text, sources_dict
+    )
 
-    return result
+    return {
+        "answer": result["last_message"].text,
+        "source_documents": sources_dict,
+    }
 
 
 @app.get("/chat/history")

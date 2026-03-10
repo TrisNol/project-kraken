@@ -2,7 +2,6 @@
 
 from typing import List, Dict, Any, Optional
 from haystack import component, Document, default_from_dict, default_to_dict
-from haystack.utils import deserialize_callable
 from neo4j import GraphDatabase
 
 
