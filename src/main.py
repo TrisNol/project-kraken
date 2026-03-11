@@ -44,6 +44,8 @@ pipelines = {}
 loaders = {}
 chat_memory = ChatMemory(max_messages_per_session=50)
 
+agent_chat_memory = {}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -118,7 +120,29 @@ async def lifespan(app: FastAPI):
     from haystack.components.generators.utils import print_streaming_chunk
     from haystack.components.generators.chat import OpenAIChatGenerator
 
+    from haystack.components.agents.state import replace_values
+
     from src.tools.rag_search_tool import RAGSearch
+    from src.tools.graph_query_tool import GraphQuery
+    from src.tools.filter_docs_tool import FilterDocs
+    from src.tools.fetch_neighbors_tool import FetchNeighbors
+
+    def _docs_to_summary(documents: list) -> str:
+        """Convert a list of Haystack Documents to a concise summary for the LLM."""
+        if not documents:
+            return "No documents found."
+        lines = [f"Found {len(documents)} document(s):"]
+        for i, doc in enumerate(documents, 1):
+            meta = doc.meta if hasattr(doc, "meta") else {}
+            doc_type = meta.get("type", "UNKNOWN")
+            title = meta.get("title", meta.get("issue_key", meta.get("file_path", "Untitled")))
+            source = meta.get("source", "")
+            snippet = (doc.content or "")[:200].replace("\n", " ")
+            lines.append(f"  [{i}] ({doc_type}) {title} — {snippet}...")
+            if source:
+                lines.append(f"      Source: {source}")
+        lines.append("\nYou can now call fetch_neighbors_tool to expand context, filter_docs_tool to narrow results, or answer the question based on these documents.")
+        return "\n".join(lines)
 
     rag_tool = ComponentTool(
         component=RAGSearch(
@@ -126,27 +150,79 @@ async def lifespan(app: FastAPI):
             text_embedder=text_embedder,
         ),
         name="rag_search_tool",
-        description="Search in the central RAG index containing informations of various sources.",
+        description="Semantic search across all indexed documents (Jira, Confluence, GitHub). Use this for broad or conceptual questions where the user describes a topic, problem, or concept in natural language (e.g. 'How does our authentication flow work?', 'What is the deployment process?').",
         outputs_to_state={"documents": {"source": "documents"}},
+        outputs_to_string={"source": "documents", "handler": _docs_to_summary},
+    )
+
+    graph_query_tool = ComponentTool(
+        component=GraphQuery(
+            neo4j_url=os.getenv("NEO4J_URL"),
+            neo4j_username=os.getenv("NEO4J_USERNAME"),
+            neo4j_password=os.getenv("NEO4J_PASSWORD"),
+            neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
+            chat_generator=create_llm_generator(),
+        ),
+        name="graph_query_tool",
+        description="Direct property lookup in the knowledge graph. Use this when the user mentions a specific identifier such as a Jira ticket key (e.g. 'DEV-42'), a Confluence space key, a project key, a GitHub repo name, or a file path. Fast and precise — best for targeted lookups by known names or keys.",
+        outputs_to_state={"documents": {"source": "documents"}},
+        outputs_to_string={"source": "documents", "handler": _docs_to_summary},
+    )
+
+    filter_docs_tool = ComponentTool(
+        component=FilterDocs(),
+        name="filter_docs_tool",
+        description="Filter the documents already retrieved in the current conversation. Use this AFTER rag_search_tool or graph_query_tool when the initial search returned too many results and you need to narrow them down to only the most relevant ones for the user's question.",
+        inputs_from_state={"documents": "documents"},
+        outputs_to_state={"documents": {"source": "documents"}},
+        outputs_to_string={"source": "documents", "handler": _docs_to_summary},
+    )
+
+    fetch_neighbors_tool = ComponentTool(
+        component=FetchNeighbors(
+            neo4j_url=os.getenv("NEO4J_URL"),
+            neo4j_username=os.getenv("NEO4J_USERNAME"),
+            neo4j_password=os.getenv("NEO4J_PASSWORD"),
+            neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
+        ),
+        name="fetch_neighbors_tool",
+        description="Expand context by fetching documents linked to the ones already retrieved via REFERENCES relationships in the graph. Use this AFTER an initial search when the user asks about related items, dependencies, or you need more surrounding context (e.g. 'What tickets are related to DEV-42?', 'Show me linked Confluence pages').",
+        inputs_from_state={"documents": "documents"},
+        outputs_to_state={"documents": {"source": "documents"}},
+        outputs_to_string={"source": "documents", "handler": _docs_to_summary},
     )
 
     kraken_agent = Agent(
         chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
         system_prompt="""
-        You are Project Kraken, an AI assistant built on-top off a central knowledge base containing information about an enterprise's documentation, processes, and data.
-        You will have access to a mulititude of tools containing different sets of informations, and your task is to use these tools to answer user questions as accurately as possible.
-        Always use the tools at your disposal to find the most accurate and up-to-date information, and only answer questions based on the information you find in the tools. Do not make up answers or hallucinate information that is not present in the tools. 
-        If you cannot find the answer to a question using the tools at your disposal, respond with a follow-up question asking for more information or clarification from the user.
+        You are Project Kraken, an AI assistant built on top of a central knowledge base containing information about an enterprise's documentation, processes, and data.
+
+        ## Tool Selection Guide
+        You have 4 tools. Choose the right one based on the user's query:
+
+        1. **graph_query_tool** — Use FIRST when the user mentions a specific identifier: a Jira ticket key (e.g. DEV-42, PROJ-123), a Confluence space or page, a project key, a GitHub repository name, or a file path. This is the fastest and most precise lookup.
+
+        2. **rag_search_tool** — Use when the user asks a broad or conceptual question in natural language (e.g. "How does authentication work?", "What is our deployment process?"). This performs a semantic search across all indexed content.
+
+        3. **filter_docs_tool** — Use AFTER an initial search (graph_query_tool or rag_search_tool) returned too many documents. This narrows results down to the most relevant ones for the question.
+
+        4. **fetch_neighbors_tool** — Use AFTER an initial search to **extend and enrich the context** by discovering documents linked to the ones already retrieved via graph relationships. This is critical when the initial results alone are not sufficient to fully answer the question. Actively use this tool to pull in related Jira tickets, linked Confluence pages, or referenced GitHub files so you can provide a more complete and well-informed answer. When in doubt about whether you have enough context, call this tool.
+
+        ## Rules
+        - Always use at least one search tool (graph_query_tool or rag_search_tool) before answering.
+        - Only answer based on information found via the tools. Never fabricate or hallucinate information.
+        - If no relevant information is found, ask the user for clarification or more details.
+        - You may chain tools: search first, then filter or fetch neighbors to refine results.
         """,
         tools=[
-            rag_tool  # Search through the vector DB --> Extend with filters for documents types
-            # graph_query_tool # Search through the knowledge graph/vector DB for documuments using cypher queries --> fast lookup with information retrieved from the users' text input
-            # filter_docs_tool # Using the documents currently in scope, filter out irrelevant documents based on the user's question to narrow down the context and information available for answering the question
-            # fetch_neighbors_tool # Using the documents currently in scope, fetch related documents from the graph to expand the context and information available for answering the question
+            rag_tool,  # Search through the vector DB --> Extend with filters for documents types
+            graph_query_tool, # Search through the knowledge graph/vector DB for documuments using cypher queries --> fast lookup with information retrieved from the users' text input
+            filter_docs_tool, # Using the documents currently in scope, filter out irrelevant documents based on the user's question to narrow down the context and information available for answering the question
+            fetch_neighbors_tool # Using the documents currently in scope, fetch related documents from the graph to expand the context and information available for answering the question
         ],
-        state_schema={"documents": {"type": list}},
+        state_schema={"documents": {"type": list, "handler": replace_values}},
         streaming_callback=print_streaming_chunk,
-        max_agent_steps=3
+        max_agent_steps=5,
     )
     pipelines["agent"] = kraken_agent
     ###### TO BE MOVED ######
@@ -231,6 +307,8 @@ async def create_index():
 @app.post("/index/clear")
 async def clear_index():
     pipelines["index"].clear_index()
+    chat_memory.clear_all()
+    agent_chat_memory.clear()
     return {"status": "index cleared"}
 
 
@@ -262,24 +340,35 @@ async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
 
     # Store user message in chat memory
     chat_memory.add_message(session_id, "user", body.question)
-
+    session_state = agent_chat_memory.get(session_id, {"messages": [], "documents": []})
+    session_state["messages"] = session_state["messages"] + [
+        ChatMessage.from_user(body.question)
+    ]
     # Get conversation context for RAG
     conversation_context = chat_memory.get_context_for_rag(session_id, max_history=4)
 
     # Normalize sources
     sources = body.sources or []
 
+    # Seed agent state with documents from previous turn for multi-turn tool chaining
     result = pipelines["agent"].run(
-        messages=[ChatMessage.from_user(body.question)],
+        messages=session_state["messages"],
+        documents=session_state.get("documents", []),
     )
     print(result)
     # Convert source documents to typed metadata dicts for storage
-    sources_dict = [_map_metadata(doc.meta).model_dump() for doc in result["documents"]]
+    sources_dict = [
+        _map_metadata(doc.meta).model_dump() for doc in result.get("documents", [])
+    ]
 
     # Store assistant response with sources in chat memory
     chat_memory.add_message(
         session_id, "assistant", result["last_message"].text, sources_dict
     )
+    agent_chat_memory[session_id] = {
+        "messages": result["messages"],
+        "documents": result.get("documents", []),
+    }
 
     return {
         "answer": result["last_message"].text,
@@ -317,6 +406,7 @@ async def clear_chat_history(request: Request):
     """
     session_id = request.state.session_id
     chat_memory.clear_session(session_id)
+    agent_chat_memory.pop(session_id, None)
     print(f"[Session ID: {session_id}] Chat history cleared")
 
     return {"status": "cleared", "session_id": session_id}
