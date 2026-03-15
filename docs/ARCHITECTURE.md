@@ -2,10 +2,13 @@
 
 ## Overview
 The knowledge base has been refactored to implement a two-tier persistence model in Neo4j:
+
 - **Document nodes**: Hold metadata and relationships between documents
 - **Chunk nodes**: Hold content and embeddings, reference parent documents
 
 This separation provides clearer semantics and better performance for both graph visualization and semantic search.
+
+The query runtime uses an **Agentic RAG** approach. The `/ask` endpoint invokes a tool-using agent that can combine semantic retrieval, graph lookup, neighborhood expansion, and relevance filtering in one execution.
 
 ## System Architecture
 
@@ -34,10 +37,20 @@ graph TB
             RM[RelationshipManager]
         end
         
-        subgraph "Query Layer"
+        subgraph "Agentic Query Layer"
+            Agent[SoftwareDeveloperAgent]
+            RAGTool[RAGSearch Tool]
+            GraphTool[GraphQuery Tool]
+            NeighborTool[FetchNeighbors Tool]
+            FilterTool[FilterDocs Tool]
             CR[ChunkRetriever]
-            QA[QuestionAnswering]
             GS[KnowledgeGraphService]
+        end
+
+        subgraph "Configuration"
+            CFG[load_env_config]
+            DI[AppContainer]
+            SET[LLM/Embedder Factory Utils]
         end
         
         API[FastAPI Endpoints]
@@ -71,11 +84,26 @@ graph TB
     GL -.links.-> RM
     RM --> Neo4j
     
-    API --> QA
+    CFG --> DI
+    SET --> DI
+    DI --> Agent
+    DI --> RAGTool
+    DI --> GraphTool
+    DI --> NeighborTool
+    DI --> CR
+
+    API --> Agent
     API --> GS
-    QA --> CR
+    Agent --> RAGTool
+    Agent --> GraphTool
+    Agent --> NeighborTool
+    Agent --> FilterTool
+
+    RAGTool --> CR
     CR --> Neo4j
-    QA --> Ollama
+    GraphTool --> Neo4j
+    NeighborTool --> Neo4j
+    Agent --> Ollama
     GS --> Neo4j
     
     UI --> Chat
@@ -189,28 +217,46 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant API as FastAPI
-    participant QA as QuestionAnswering
-    participant TextEmb as TextEmbedder
-    participant Retriever as ChunkRetriever
+    participant Agent as SoftwareDeveloperAgent
+    participant RAG as RAGSearch
+    participant GQ as GraphQuery
+    participant FN as FetchNeighbors
+    participant FD as FilterDocs
     participant Neo4j as Neo4j Database
     participant LLM as LLM Generator
     
-    User->>API: POST /ask {question}
-    API->>QA: answer_question(question)
-    
-    QA->>TextEmb: embed(question)
-    TextEmb-->>QA: embedding vector
-    
-    QA->>Retriever: run(query_embedding)
-    Retriever->>Neo4j: Vector search on chunk_embeddings
-    Neo4j-->>Retriever: Top K Chunks
-    Retriever->>Neo4j: MATCH (chunk)-[:PART_OF]->(doc)
-    Neo4j-->>Retriever: Chunks + Document metadata
-    Retriever-->>QA: Documents (chunk content + doc metadata)
-    
-    QA->>LLM: generate(prompt + documents)
-    LLM-->>QA: Answer
-    QA-->>API: ResponseModel
+    User->>API: POST /ask {question, sources}
+    API->>Agent: run(messages, documents, allowed_sources)
+
+    alt Broad conceptual query
+        Agent->>RAG: run(query, allowed_sources)
+        RAG->>Neo4j: vector search on chunk_embeddings
+        Neo4j-->>RAG: Top K docs
+        RAG-->>Agent: candidate docs
+    else Identifier-centric query
+        Agent->>GQ: run(query, allowed_sources)
+        GQ->>LLM: extract structured filters from prompt
+        LLM-->>GQ: JSON filters
+        GQ->>Neo4j: filtered MATCH on Document properties
+        Neo4j-->>GQ: targeted docs
+        GQ-->>Agent: candidate docs
+    end
+
+    opt Broaden context
+        Agent->>FN: run(documents, allowed_sources)
+        FN->>Neo4j: traverse REFERENCES neighbors
+        Neo4j-->>FN: neighboring docs
+        FN-->>Agent: expanded docs
+    end
+
+    opt Reduce noise
+        Agent->>FD: run(documents, query)
+        FD-->>Agent: relevance-filtered docs
+    end
+
+    Agent->>LLM: generate final grounded answer
+    LLM-->>Agent: Answer
+    Agent-->>API: ResponseModel
     API-->>User: Answer + source documents
 ```
 
@@ -243,10 +289,66 @@ sequenceDiagram
 
 ## Key Components
 
+### SoftwareDeveloperAgent
+**Path**: `src/agents/__init__.py`
+
+Central orchestrator for Agentic RAG:
+
+- Decides which retrieval tool(s) to call per query
+- Chains tools within one run (search -> neighbors -> filter)
+- Maintains `documents` and `allowed_sources` in agent state
+
+### RAGSearch
+**Path**: `src/tools/rag_search_tool.py`
+
+Semantic retrieval tool:
+
+- Embeds query text and queries `ChunkRetriever`
+- Applies source constraints through retriever filters when `allowed_sources` is provided
+
+### GraphQuery
+**Path**: `src/tools/graph_query_tool.py`
+
+Precision graph lookup tool:
+
+- Uses the LLM to extract structured filters (issue key, project key, repo, file path, etc.)
+- Builds Cypher dynamically from extracted values
+- Supports source filtering via `allowed_sources`
+- Reconstructs document content by collecting related chunk text
+
+### FetchNeighbors
+**Path**: `src/tools/fetch_neighbors_tool.py`
+
+Context expansion tool:
+
+- Traverses `REFERENCES` relationships for already-selected documents
+- Returns neighboring documents merged with current context
+- Applies source filtering and de-duplicates by document `id`
+
+### FilterDocs
+**Path**: `src/tools/filter_docs_tool.py`
+
+Post-retrieval relevance filtering:
+
+- Scores documents by simple keyword overlap with query terms
+- Removes low-signal documents (score 0)
+- Sorts retained docs by descending score
+
+### AppContainer and Config Utilities
+**Path**: `src/config/__init__.py`
+**Path**: `src/core/settings.py`
+
+Runtime wiring and provider abstraction:
+
+- `load_env_config()` centralizes environment parsing
+- `AppContainer` provides dependency-injected factories for loaders, tools, index, and graph services
+- Utility factory methods (`create_llm_generator`, `create_text_embedder`, `create_document_embedder`) encapsulate provider-specific setup (Ollama/OpenAI)
+
 ### DocumentChunkWriter
 **Path**: `src/core/document_chunk_writer.py`
 
 Creates the two-tier structure in Neo4j:
+
 - Groups chunks by parent document
 - Creates Document nodes with metadata (no embeddings)
 - Creates Chunk nodes with content, embeddings, and chunk_index
@@ -257,6 +359,7 @@ Creates the two-tier structure in Neo4j:
 **Path**: `src/core/chunk_retriever.py`
 
 Custom retriever for embedding-based search:
+
 - Queries `chunk_embeddings` vector index
 - Traverses PART_OF relationship to parent Document
 - Returns chunk content with document metadata
@@ -266,6 +369,7 @@ Custom retriever for embedding-based search:
 **Path**: `src/core/knowledge_index.py`
 
 Orchestrates the indexing process:
+
 - Uses DocumentChunkWriter instead of Neo4jDocumentStore
 - Creates relationships between Documents (not Chunks)
 - Provides stats about Documents and Chunks
@@ -274,6 +378,7 @@ Orchestrates the indexing process:
 **Path**: `src/core/relationship_manager.py`
 
 Creates REFERENCES edges between Document nodes:
+
 - Uses LIMIT 1 to prevent duplicates
 - Supports Jira ↔ Jira, Jira ↔ Confluence, GitHub ↔ * relationships
 - Works with document IDs, not chunk IDs
@@ -282,6 +387,7 @@ Creates REFERENCES edges between Document nodes:
 **Path**: `src/core/knowledge_graph_service.py`
 
 Fetches graph data for visualization:
+
 - Returns Document nodes only (not Chunks)
 - Returns REFERENCES relationships
 - Provides relationship statistics
@@ -308,26 +414,6 @@ Fetches graph data for visualization:
 - Simpler queries (no need for LIMIT 1 workarounds on chunks)
 - More intuitive data model
 
-## Migration Notes
-
-### Breaking Changes
-1. **Neo4j Schema**: Existing `Document` nodes will coexist with new structure
-   - Old nodes: Haystack documents (chunks) labeled as `Document`
-   - New nodes: Logical documents labeled as `Document` + chunks labeled as `Chunk`
-   - **Action**: Clear database before re-indexing
-
-2. **Vector Index**: Changed from `document_embeddings` to `chunk_embeddings`
-   - Old index: Points to old Document nodes
-   - New index: Points to Chunk nodes
-   - **Action**: Drop old index or use different database
-
-3. **Environment Variables**: Update `NEO4J_INDEX` to `chunk_embeddings`
-
-### Backward Compatibility
-- No breaking changes in API endpoints
-- Frontend requires no changes
-- Query responses maintain same structure
-
 ## Configuration
 
 ### Environment Variables
@@ -344,75 +430,15 @@ NEO4J_TOP_K=5
 
 ### Neo4j Indexes
 The system automatically creates:
+
 - `chunk_embeddings`: Vector index on Chunk.embedding (cosine similarity)
-
-## Testing
-
-### Verify Structure
-```cypher
-// Check Document nodes
-MATCH (d:Document)
-RETURN count(d) as documents, collect(DISTINCT d.type) as types
-
-// Check Chunk nodes
-MATCH (c:Chunk)
-RETURN count(c) as chunks
-
-// Check relationships with ordering
-MATCH (c:Chunk)-[r:PART_OF]->(d:Document)
-RETURN count(*) as part_of_edges, 
-       min(r.chunk_index) as min_index, 
-       max(r.chunk_index) as max_index
-
-// Verify chunk ordering for a specific document
-MATCH (c:Chunk)-[r:PART_OF]->(d:Document)
-WHERE d.id = 'jira:PROJ-123'
-RETURN c.chunk_index, substring(c.content, 0, 100) as preview
-ORDER BY c.chunk_index
-
-MATCH (d1:Document)-[:REFERENCES]->(d2:Document)
-RETURN count(*) as reference_edges
-
-// Verify chunks have embeddings
-MATCH (c:Chunk)
-WHERE c.embedding IS NOT NULL
-RETURN count(c) as chunks_with_embeddings
-```
-
-### Test Retrieval
-```python
-# Query should return chunks with document metadata
-from src.core.chunk_retriever import ChunkRetriever
-
-retriever = ChunkRetriever(
-    neo4j_url="bolt://localhost:7687",
-    neo4j_username="neo4j",
-    neo4j_password="password",
-    index_name="chunk_embeddings",
-    top_k=5
-)
-
-# Example embedding (replace with actual embedding)
-results = retriever.run(query_embedding=[0.1] * 768)
-for doc in results["documents"]:
-    print(f"Content: {doc.content[:100]}...")
-    print(f"Type: {doc.meta['type']}")
-    print(f"Score: {doc.meta['score']}")
-```
-
-## Future Enhancements
-
-1. **Reconstruct Full Documents**: Add endpoint to retrieve all chunks in order and reconstruct original document
-2. **Smart Chunking**: Use content-aware chunking strategies
-3. **Chunk Overlap**: Track overlapping chunks for better context
-4. **Hybrid Search**: Combine vector search with keyword search on chunks
-5. **Document Versioning**: Track document versions and changes over time
 
 ## Chat History & Session Management Implementation
 
 ### Session Tracking Architecture
 
 **SessionMiddleware** (`src/main.py`):
+
 - Implements Starlette `BaseHTTPMiddleware`
 - Checks for existing `X-Session-ID` in request cookies
 - Generates UUID v4 if no session exists
@@ -442,6 +468,7 @@ class ChatMemory:
 ```
 
 **Key Methods**:
+
 - `add_message(session_id, role, content, sources)`: Store message with optional sources
 - `get_history(session_id, limit)`: Retrieve conversation history
 - `clear_session(session_id)`: Remove all messages for a session
@@ -456,46 +483,48 @@ if len(self._memory[session_id]) > self.max_messages_per_session:
     self._memory[session_id] = self._memory[session_id][-self.max_messages_per_session:]
 ```
 
-### Conversational RAG Pipeline
+### Conversational Agentic RAG Pipeline
 
-**Query Rewriting Architecture**:
+The conversational flow keeps multi-turn context in session memory and lets the agent choose tools at each turn.
 
-The RAG pipeline implements a two-stage LLM approach:
+1. **Session Context Stage**: Previous messages and retained documents are loaded from `ChatMemory`
+2. **Tool-Orchestrated Retrieval Stage**: Agent selects and chains retrieval tools using the current question and source filters
+3. **Answer Stage**: LLM answers using the final curated document set
 
-1. **Query Rewriting Stage**: Converts contextual questions to standalone queries
-2. **Answer Generation Stage**: Generates final answer with full context
-
-**Pipeline Components** (`src/core/question_answering.py`):
+**Pipeline Components** (`src/main.py`, `src/agents/__init__.py`, `src/tools/*.py`):
 
 ```mermaid
 graph LR
-    Q[Question] --> QR[Query Rewriter]
-    CH[Chat History] --> QR
-    QR --> RLLM[Rewrite LLM]
-    RLLM --> TE[Text Extractor]
-    TE --> Emb[Text Embedder]
-    Emb --> Ret[Retriever]
-    Ret --> Docs[Documents]
-    Docs --> APB[Answer Prompt]
-    Q --> APB
-    CH --> APB
-    APB --> ALLM[Answer LLM]
-    ALLM --> Ans[Answer]
+    Q[Question] --> API["/ask Endpoint"]
+    S[Session Memory] --> API
+    API --> AG[SoftwareDeveloperAgent]
+    AG --> T1[RAGSearch]
+    AG --> T2[GraphQuery]
+    AG --> T3[FetchNeighbors]
+    AG --> T4[FilterDocs]
+    T1 --> N[(Neo4j)]
+    T2 --> N
+    T3 --> N
+    AG --> LLM[Answer LLM]
+    LLM --> A[Answer + Sources]
 ```
 
 ### Security & Privacy
 
 **Session Isolation**:
+
 - Each session ID is a cryptographically random UUID
 - No cross-session data access
 - Session-scoped storage prevents user data mixing
 
 **Cookie Security**:
+
 - `httponly=True`: Prevents JavaScript access (XSS protection)
 - `samesite="lax"`: CSRF protection
 - Should enable `secure=True` in production (HTTPS only)
 
 **Data Lifecycle**:
+
 - Sessions persist only in application memory
 - Application restart clears all history
 - No persistent storage of conversations (privacy by design)

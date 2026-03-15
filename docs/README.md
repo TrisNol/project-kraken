@@ -2,19 +2,32 @@
 
 # Release the Kraken
 
-Project Kraken is a **Central Knowledge Base** designed to bring together multiple sources of information
-- Git 
+Project Kraken is a **Central Knowledge Base** designed to bring together multiple sources of information:
+
+- GitHub 
 - Confluence
 - Jira
 
 into a single, unified platform.
 
 With **Project Kraken**, you can:
+
 - 🗂️ Access all your resources in one place
-- 🔍 Perform Retrieval-Augmented Generation (RAG) functions for smarter insights
+- 🤖 Perform Agentic Retrieval-Augmented Generation (Agentic RAG)
 - 🚀 Boost productivity and collaboration across teams
 
 Unleash the power of seamless knowledge integration with Project Kraken! 🦑
+
+## Agentic RAG at a Glance
+
+The runtime agent can dynamically combine these tools to generate an intelligent response to your query:
+
+- **RAG Search Tool**: semantic retrieval over chunk embeddings
+- **Graph Query Tool**: targeted Neo4j lookup using filters extracted from user prompts
+- **Fetch Neighbors Tool**: graph neighborhood expansion via `REFERENCES` relationships
+- **Filter Docs Tool**: post-retrieval pruning of weakly relevant documents
+
+All retrieval tools support and respect source filters passed by the API request (for example: Jira-only, GitHub-only).
 
 ## Architecture Overview
 
@@ -28,7 +41,13 @@ graph LR
     
     subgraph "Project Kraken"
         KB[🦑 Central Knowledge Base]
-        RAG[🤖 RAG Engine]
+        Agent[🧠 Agentic RAG Agent]
+        subgraph "🛠️ Tools"
+            T1[🔍 RAG Search]
+            T2[🗂️ Graph Query]
+            T3[🕸️ Fetch Neighbors]
+            T4[🔎 Filter Docs]
+        end
         Graph[🕸️ Knowledge Graph]
     end
     
@@ -42,11 +61,17 @@ graph LR
     C --> KB
     G --> KB
     
-    KB --> RAG
+    KB --> Agent
+    Agent --> T1
+    Agent --> T2
+    Agent --> T3
+    Agent --> T4
+    T2 --> Graph
+    T3 --> Graph
     KB --> Graph
     
-    RAG --> Search
-    RAG --> QA
+    Agent --> Search
+    Agent --> QA
     Graph --> Viz
 ```
 
@@ -57,56 +82,58 @@ sequenceDiagram
     participant User
     participant UI as Frontend
     participant API as Backend API
-    participant KB as Knowledge Base
+    participant Agent as Agentic RAG Agent
+    participant Tools as Retrieval Tools
+    participant Neo4j as Neo4j
     participant LLM as LLM (Ollama/OpenAI)
     
-    User->>UI: Ask Question
-    UI->>API: POST /ask
-    API->>KB: Retrieve relevant documents
-    KB-->>API: Top K documents
-    API->>LLM: Generate answer with context
-    LLM-->>API: Answer
+    User->>UI: Ask question + selected sources
+    UI->>API: POST /ask { question, sources }
+    API->>Agent: run(messages, documents, allowed_sources)
+    Agent->>Tools: Call rag_search_tool / graph_query_tool
+    Tools->>Neo4j: Retrieve candidate docs (source-filtered)
+    Neo4j-->>Tools: Documents
+    Agent->>Tools: Optionally fetch neighbors + filter docs
+    Tools-->>Agent: Expanded + filtered context
+    Agent->>LLM: Generate grounded answer
+    LLM-->>Agent: Answer
+    Agent-->>API: Final answer + source docs
     API-->>UI: Response + sources
     UI-->>User: Display answer & links
 ```
 
 ## Configuration
 
-Project Kraken currently supports both [ollama](https://ollama.com/) and [OpenAI](https://openai.com/api/) as your GenAI provider. This can be configured via a set of environment variables (see: [.env.example](../.env.example)).
+Project Kraken currently supports both [ollama](https://ollama.com/) and [OpenAI](https://openai.com/api/) as your GenAI provider.
+
+Configuration is centralized through:
+
+- `load_env_config()` for environment parsing
+- `AppContainer` for dependency wiring and runtime component creation
+- provider utility factories for chat generator and embedders
+
+See: [.env.example](../.env.example) and [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Chat History & Session Management
 
 Project Kraken implements intelligent chat history management to provide a seamless conversational experience across page reloads and sessions.
 
-## Chat History & Session Management
-
-Project Kraken implements intelligent chat history management to provide a seamless conversational experience.
-
 ### Key Features
 
 **Session Tracking**: 
+
 - Automatic session ID generation and cookie-based persistence
 - 30-day session lifetime
 - HTTP-only cookies for security
 
 **Conversational Context**:
+
 - Follow-up questions automatically rewritten using chat history
 - Last 4 messages used as context for query understanding
 - Seamless multi-turn conversations
 
 **History Restoration**:
+
 - Complete chat history restored on page reload
 - All messages, responses, and source references preserved
 - Instant access to previous conversations
-
-<!-- ### Benefits
-
-✅ **Seamless UX**: Conversations persist across reloads  
-✅ **Contextual Awareness**: Follow-up questions work naturally  
-✅ **Complete History**: All sources and references preserved  
-✅ **Privacy**: Session-based isolation, in-memory storage  
-✅ **Performance**: Fast in-memory access 
-
-
-For detailed implementation, see [ARCHITECTURE.md](./ARCHITECTURE.md#chat-history--session-management-implementation).
--->
