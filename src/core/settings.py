@@ -1,9 +1,4 @@
-import os
-from dotenv import load_dotenv
-
 from typing import Any
-
-load_dotenv()
 
 from haystack.utils import Secret
 
@@ -28,31 +23,24 @@ except Exception:
         OpenAIDocumentEmbedder
     ) = None
 
-
-def _env_provider_settings() -> tuple[str, str]:
-    """Return the configured providers for chat and embeddings.
-
-    Values are normalized to lowercase. Embedding provider defaults to
-    the chat provider when not explicitly set.
-    """
-    chat = os.getenv("LLM_CHAT_PROVIDER", "ollama").lower()
-    embed = os.getenv("LLM_EMBEDDING_PROVIDER", chat).lower()
-    return chat, embed
-
-
-def create_llm_generator(provider: str | None = None) -> Any:
+def create_llm_generator(
+    provider: str,
+    model: str | None,
+    host: str | None,
+    openai_api_key: str | None,
+) -> Any:
     """Create and return a chat generator instance for the given provider.
 
     The returned object is a Haystack generator component (e.g. OllamaChatGenerator
     or OpenAIChatGenerator/OpenAIGenerator). Raises ImportError if the
     requested provider's integration is not available.
     """
-    provider = (provider or _env_provider_settings()[0]).lower()
+    provider = provider.lower()
     if provider == "openai":
         if OpenAIChatGenerator is not None:
             return OpenAIChatGenerator(
-                model=os.getenv("LLM_CHAT_MODEL"),
-                api_key=Secret.from_token(os.getenv("OPENAI_API_KEY")),
+                model=model,
+                api_key=Secret.from_token(openai_api_key),
             )
         raise ImportError(
             "OpenAI chat generator is not available. Install haystack with OpenAI support."
@@ -62,58 +50,64 @@ def create_llm_generator(provider: str | None = None) -> Any:
             raise ImportError(
                 "Ollama chat generator is not available. Install haystack-integrations with Ollama support."
             )
-        return OllamaChatGenerator(
-            model=os.getenv("LLM_CHAT_MODEL"), url=os.getenv("LLM_HOST")
-        )
+        return OllamaChatGenerator(model=model, url=host)
 
 
-def create_text_embedder(provider: str | None = None) -> Any:
+def create_text_embedder(
+    provider: str,
+    model: str | None,
+    host: str | None,
+    openai_api_key: str | None,
+    embedding_dimension: int,
+) -> Any:
     """Create and return a text embedder instance for the given provider.
 
     This is intended for query embeddings.
     """
-    provider = (provider or _env_provider_settings()[1]).lower()
+    provider = provider.lower()
     if provider == "openai":
         if OpenAITextEmbedder is None:
             raise ImportError(
                 "OpenAI text embedder is not available. Install haystack with OpenAI support."
             )
         return OpenAITextEmbedder(
-            model=os.getenv("LLM_EMBEDDING_MODEL"),
-            api_key=Secret.from_token(os.getenv("OPENAI_API_KEY")),
-            dimensions=int(os.getenv("EMBEDDING_DIMENSION", "768")),
+            model=model,
+            api_key=Secret.from_token(openai_api_key),
+            dimensions=embedding_dimension,
         )
     else:
         if OllamaTextEmbedder is None:
             raise ImportError(
                 "Ollama text embedder is not available. Install haystack-integrations with Ollama support."
             )
-        return OllamaTextEmbedder(
-            model=os.getenv("LLM_EMBEDDING_MODEL"), url=os.getenv("LLM_HOST")
-        )
+        return OllamaTextEmbedder(model=model, url=host)
 
 
-def create_document_embedder(provider: str | None = None) -> Any:
+def create_document_embedder(
+    provider: str,
+    model: str | None,
+    host: str | None,
+    openai_api_key: str | None,
+    embedding_dimension: int,
+) -> Any:
     """Create and return a document embedder for indexing.
 
     This is intended to be passed to the indexing pipeline.
     """
-    provider = (provider or _env_provider_settings()[1]).lower()
+    provider = provider.lower()
     if provider == "openai":
         if OpenAIDocumentEmbedder is None:
             raise ImportError(
                 "OpenAI document embedder is not available. Install haystack with OpenAI support."
             )
         return OpenAIDocumentEmbedder(
-            model=os.getenv("LLM_EMBEDDING_MODEL"),
-            api_key=Secret.from_token(os.getenv("OPENAI_API_KEY")),
-            dimensions=int(os.getenv("EMBEDDING_DIMENSION", "768")),
+            model=model,
+            api_key=Secret.from_token(openai_api_key),
+            dimensions=embedding_dimension,
         )
     else:
         if OllamaDocumentEmbedder is None:
             raise ImportError(
                 "Ollama document embedder is not available. Install haystack-integrations with Ollama support."
             )
-        return OllamaDocumentEmbedder(
-            model=os.getenv("LLM_EMBEDDING_MODEL"), url=os.getenv("LLM_HOST")
-        )
+        return OllamaDocumentEmbedder(model=model, url=host)

@@ -1,34 +1,32 @@
 import os
 import uuid
-
-from dotenv import load_dotenv
+import logging
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from haystack.dataclasses import ChatMessage
+from haystack.tools import ComponentTool
+from haystack.components.generators.utils import print_streaming_chunk
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.common.models import DocumentSourceType, ResponseModel, GraphResponse
-from src.core.knowledge_index import KnowledgeIndex
-from src.core.document_chunk_writer import DocumentChunkWriter
-from src.core.chunk_retriever import ChunkRetriever
-from src.core.question_answering import QuestionAnswering
-from src.core.knowledge_graph_service import KnowledgeGraphService
-from src.core.relationship_manager import RelationshipManager
-
-from src.core.atlassian.jira_loader import JiraLoader
-from src.core.atlassian.confluence_loader import ConfluenceLoader
-from src.core.git.github_loader import GitHubLoader
-from src.core.chat_memory import ChatMemory
-
-from src.core.settings import (
-    create_llm_generator,
-    create_text_embedder,
-    create_document_embedder,
+from src.agents import SoftwareDeveloperAgent
+from src.common.models import (
+    DocumentSourceType,
+    ResponseModel,
+    GraphResponse,
+    BaseMetadata,
+    JiraMetadata,
+    ConfluenceMetadata,
+    GitHubMetadata,
 )
+from src.core.chat_memory import ChatMemory
+from src.config import AppContainer, load_env_config
+from src.tools.utils import _docs_to_summary
+from src.tools.filter_docs_tool import FilterDocs
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 pipelines = {}
 loaders = {}
@@ -37,77 +35,80 @@ chat_memory = ChatMemory(max_messages_per_session=50)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    container: AppContainer = app.container
+
     # Init loaders
-    loaders["jira"] = JiraLoader(
-        url=os.getenv("JIRA_URL"),
-        username=os.getenv("JIRA_USERNAME"),
-        api_key=os.getenv("JIRA_API_KEY"),
-        projects=os.getenv("JIRA_PROJECTS", "").split(","),
-    )
-    loaders["confluence"] = ConfluenceLoader(
-        url=os.getenv("CONFLUENCE_URL"),
-        username=os.getenv("CONFLUENCE_USERNAME"),
-        api_key=os.getenv("CONFLUENCE_API_KEY"),
-        spaces=os.getenv("CONFLUENCE_SPACES", "").split(","),
-    )
-    loaders["github"] = GitHubLoader(
-        repositories=os.getenv("GITHUB_REPOSITORIES", "").split(","),
-        ref=os.getenv("GITHUB_REF", "main"),
-        token=os.getenv("GITHUB_TOKEN"),
-    )
-    # Init RAG pipeline
-    chunk_writer = DocumentChunkWriter(
-        neo4j_url=os.getenv("NEO4J_URL"),
-        neo4j_username=os.getenv("NEO4J_USERNAME"),
-        neo4j_password=os.getenv("NEO4J_PASSWORD"),
-        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
-        embedding_dim=int(os.getenv("EMBEDDING_DIMENSION", "768")),
-    )
-    # Create chunk retriever for querying embedded chunks
-    chunk_retriever = ChunkRetriever(
-        neo4j_url=os.getenv("NEO4J_URL"),
-        neo4j_username=os.getenv("NEO4J_USERNAME"),
-        neo4j_password=os.getenv("NEO4J_PASSWORD"),
-        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
-        index_name=os.getenv("NEO4J_INDEX", "chunk_embeddings"),
-        top_k=int(os.getenv("NEO4J_TOP_K", "5")),
-    )
-    # Create provider components centrally
-    llm_generator = create_llm_generator()
-    text_embedder = create_text_embedder()
-    document_embedder = create_document_embedder()
+    loaders["jira"] = container.jira_loader()
+    loaders["confluence"] = container.confluence_loader()
+    loaders["github"] = container.github_loader()
 
-    pipelines["rag"] = QuestionAnswering(
-        embedding_retriever=chunk_retriever,
-        llm_generator=llm_generator,
-        text_embedder=text_embedder,
+    pipelines["index"] = container.knowledge_index()
+    pipelines["graph"] = container.knowledge_graph_service()
+
+    rag_tool = ComponentTool(
+        component=container.rag_search(),
+        name="rag_search_tool",
+        description="Semantic search across all indexed documents (Jira, Confluence, GitHub). Use this for broad or conceptual questions where the user describes a topic, problem, or concept in natural language (e.g. 'How does our authentication flow work?', 'What is the deployment process?').",
+        inputs_from_state={"allowed_sources": "allowed_sources"},
+        outputs_to_state={"documents": {"source": "documents"}},
+        outputs_to_string={"source": "documents", "handler": _docs_to_summary},
     )
 
-    # Initialize relationship manager for tracking document links
-    relationship_manager = RelationshipManager(
-        neo4j_url=os.getenv("NEO4J_URL"),
-        neo4j_username=os.getenv("NEO4J_USERNAME"),
-        neo4j_password=os.getenv("NEO4J_PASSWORD"),
-        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
+    graph_query_tool = ComponentTool(
+        component=container.graph_query(),
+        name="graph_query_tool",
+        description="Direct property lookup in the knowledge graph. Use this when the user mentions a specific identifier such as a Jira ticket key (e.g. 'DEV-42'), a Confluence space key, a project key, a GitHub repo name, or a file path. Fast and precise — best for targeted lookups by known names or keys.",
+        inputs_from_state={"allowed_sources": "allowed_sources"},
+        outputs_to_state={"documents": {"source": "documents"}},
+        outputs_to_string={"source": "documents", "handler": _docs_to_summary},
     )
 
-    pipelines["index"] = KnowledgeIndex(
-        chunk_writer=chunk_writer,
-        document_embedder=document_embedder,
-        relationship_manager=relationship_manager,
+    filter_docs_tool = ComponentTool(
+        component=FilterDocs(),
+        name="filter_docs_tool",
+        description="Filter the documents already retrieved in the current conversation. Use this AFTER rag_search_tool or graph_query_tool when the initial search returned too many results and you need to narrow them down to only the most relevant ones for the user's question.",
+        inputs_from_state={"documents": "documents"},
+        outputs_to_state={"documents": {"source": "documents"}},
+        outputs_to_string={"source": "documents", "handler": _docs_to_summary},
     )
-    pipelines["graph"] = KnowledgeGraphService(
-        neo4j_url=os.getenv("NEO4J_URL"),
-        neo4j_username=os.getenv("NEO4J_USERNAME"),
-        neo4j_password=os.getenv("NEO4J_PASSWORD"),
-        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
+
+    fetch_neighbors_tool = ComponentTool(
+        component=container.fetch_neighbors(),
+        name="fetch_neighbors_tool",
+        description="Expand context by fetching documents linked to the ones already retrieved via REFERENCES relationships in the graph. Use this AFTER an initial search when the user asks about related items, dependencies, or you need more surrounding context (e.g. 'What tickets are related to DEV-42?', 'Show me linked Confluence pages').",
+        inputs_from_state={
+            "documents": "documents",
+            "allowed_sources": "allowed_sources",
+        },
+        outputs_to_state={"documents": {"source": "documents"}},
+        outputs_to_string={"source": "documents", "handler": _docs_to_summary},
     )
+
+    main_kraken_agent = SoftwareDeveloperAgent(
+        chat_generator=container.llm_generator(),
+        tools=[
+            rag_tool,
+            graph_query_tool,
+            filter_docs_tool,
+            fetch_neighbors_tool,
+        ],
+        streaming_callback=print_streaming_chunk if container.config.app.environment() == "development" else None,
+    )
+    pipelines["agent"] = main_kraken_agent
+
     yield
     # Clean up before shutdown
     pipelines.clear()
 
 
-app = FastAPI(lifespan=lifespan)
+def create_app() -> FastAPI:
+    app = FastAPI(lifespan=lifespan)
+    app.container = AppContainer()
+    app.container.config.from_dict(load_env_config())
+    return app
+
+
+app = create_app()
 origins = [
     "*",
 ]
@@ -182,43 +183,109 @@ async def create_index():
 @app.post("/index/clear")
 async def clear_index():
     pipelines["index"].clear_index()
+    chat_memory.clear_all()
     return {"status": "index cleared"}
 
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AskRequest(BaseModel):
     question: str
-    sources: list[str] = []
+    sources: list[str] = Field(default_factory=list)
+
+
+def _normalize_requested_sources(sources: list[str] | None) -> list[str]:
+    if not sources:
+        return []
+
+    allowed_values = {source.value for source in DocumentSourceType}
+    normalized: list[str] = []
+    for source in sources:
+        source_value = source.strip().upper()
+        if not source_value:
+            continue
+        if source_value not in allowed_values:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Invalid source '{source}'. "
+                    f"Allowed values: {', '.join(sorted(allowed_values))}"
+                ),
+            )
+        if source_value not in normalized:
+            normalized.append(source_value)
+    return normalized
+
+
+def _map_metadata(meta: dict) -> BaseMetadata:
+    doc_type = meta.get("type")
+    if doc_type == "JIRA":
+        return JiraMetadata(**meta)
+    elif doc_type == "CONFLUENCE":
+        return ConfluenceMetadata(**meta)
+    elif doc_type == "GITHUB":
+        return GitHubMetadata(**meta)
+    else:
+        raise ValueError(f"Unknown document type: {doc_type}")
 
 
 @app.post("/ask", response_model=ResponseModel)
 async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
     # Retrieve and print the session ID
     session_id = request.state.session_id
-    print(f"[Session ID: {session_id}] Processing question: {body.question[:50]}...")
+    logger.info(f"[Session ID: {session_id}] Received question: {body.question} with sources: {body.sources}")
 
     # Store user message in chat memory
     chat_memory.add_message(session_id, "user", body.question)
 
-    # Get conversation context for RAG
-    conversation_context = chat_memory.get_context_for_rag(session_id, max_history=4)
+    allowed_sources = _normalize_requested_sources(body.sources)
 
-    # Normalize sources
-    sources = body.sources or []
+    session_state = chat_memory.get_agent_state(session_id)
+    session_documents = session_state.get("documents", [])
+    if allowed_sources:
+        session_documents = [
+            doc
+            for doc in session_documents
+            if str(doc.meta.get("type", "")).upper() in allowed_sources
+        ]
 
-    result = pipelines["rag"].answer_question(
-        body.question, sources, conversation_context
+    session_messages = session_state["messages"] + [ChatMessage.from_user(body.question)]
+
+    # Seed agent state with documents from previous turn for multi-turn tool chaining
+    result = pipelines["agent"].run(
+        messages=session_messages,
+        documents=session_documents,
+        allowed_sources=allowed_sources,
     )
 
-    # Convert source documents to dict format for storage
-    sources_dict = [doc.model_dump() for doc in result.source_documents]
+    result_documents = result.get("documents", [])
+    if allowed_sources:
+        result_documents = [
+            doc
+            for doc in result_documents
+            if str(doc.meta.get("type", "")).upper() in allowed_sources
+        ]
+
+    # Convert source documents to typed metadata dicts for storage
+    sources_dict = [
+        _map_metadata(doc.meta).model_dump() for doc in result_documents
+    ]
 
     # Store assistant response with sources in chat memory
-    chat_memory.add_message(session_id, "assistant", result.answer, sources_dict)
+    chat_memory.add_message(
+        session_id, "assistant", result["last_message"].text, sources_dict
+    )
+    chat_memory.set_agent_state(
+        session_id,
+        messages=result["messages"],
+        documents=result_documents,
+    )
 
-    return result
+    return {
+        "answer": result["last_message"].text,
+        "source_documents": sources_dict,
+    }
 
 
 @app.get("/chat/history")
@@ -251,7 +318,7 @@ async def clear_chat_history(request: Request):
     """
     session_id = request.state.session_id
     chat_memory.clear_session(session_id)
-    print(f"[Session ID: {session_id}] Chat history cleared")
+    logger.info(f"[Session ID: {session_id}] Chat history cleared")
 
     return {"status": "cleared", "session_id": session_id}
 
