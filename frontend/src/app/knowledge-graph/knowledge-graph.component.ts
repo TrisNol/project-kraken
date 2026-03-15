@@ -10,14 +10,14 @@ import { NodeComponent } from "./components/node/node.component";
         templateUrl: "./knowledge-graph.component.html",
         styleUrls: ["./knowledge-graph.component.scss"],
         imports: [
-    FFlowModule,
-    NodeComponent
-]
+            FFlowModule,
+            NodeComponent
+        ]
     }
 )
 export class KnowledgeGraphComponent implements OnInit {
     private readonly graphService = inject(KnowledgeGraphService);
-    
+
     nodes = signal<GraphNode[]>([]);
     edges = signal<GraphEdge[]>([]);
     isLoading = signal(false);
