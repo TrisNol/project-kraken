@@ -2,7 +2,7 @@ import { Component, signal, inject, OnInit } from "@angular/core";
 import { FFlowModule } from "@foblex/flow";
 import { KnowledgeGraphService, GraphNode, GraphEdge } from "./knowledge-graph.service";
 import { NodeComponent } from "./components/node/node.component";
-import { CommonModule } from "@angular/common";
+
 
 @Component(
     {
@@ -10,10 +10,9 @@ import { CommonModule } from "@angular/common";
         templateUrl: "./knowledge-graph.component.html",
         styleUrls: ["./knowledge-graph.component.scss"],
         imports: [
-            CommonModule,
-            FFlowModule,
-            NodeComponent
-        ]
+    FFlowModule,
+    NodeComponent
+]
     }
 )
 export class KnowledgeGraphComponent implements OnInit {
