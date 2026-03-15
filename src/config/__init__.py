@@ -21,7 +21,7 @@ from src.tools.graph_query_tool import GraphQuery
 from src.tools.rag_search_tool import RAGSearch
 
 
-def _comma_seperated_values_env(key: str) -> list[str]:
+def _comma_separated_values_env(key: str) -> list[str]:
     value = os.getenv(key, "")
     return [item.strip() for item in value.split(",") if item.strip()]
 
@@ -33,20 +33,24 @@ def load_env_config() -> dict:
     embedding_provider = os.getenv("LLM_EMBEDDING_PROVIDER", chat_provider).lower()
 
     return {
+        "app": {
+            "environment": os.getenv("ENV", "production"),
+            "port": int(os.getenv("PORT", 8000)),
+        },
         "jira": {
             "url": os.getenv("JIRA_URL"),
             "username": os.getenv("JIRA_USERNAME"),
             "api_key": os.getenv("JIRA_API_KEY"),
-            "projects": _comma_seperated_values_env("JIRA_PROJECTS"),
+            "projects": _comma_separated_values_env("JIRA_PROJECTS"),
         },
         "confluence": {
             "url": os.getenv("CONFLUENCE_URL"),
             "username": os.getenv("CONFLUENCE_USERNAME"),
             "api_key": os.getenv("CONFLUENCE_API_KEY"),
-            "spaces": _comma_seperated_values_env("CONFLUENCE_SPACES"),
+            "spaces": _comma_separated_values_env("CONFLUENCE_SPACES"),
         },
         "github": {
-            "repositories": _comma_seperated_values_env("GITHUB_REPOSITORIES"),
+            "repositories": _comma_separated_values_env("GITHUB_REPOSITORIES"),
             "ref": os.getenv("GITHUB_REF", "main"),
             "token": os.getenv("GITHUB_TOKEN"),
         },

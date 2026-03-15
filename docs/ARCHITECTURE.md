@@ -444,9 +444,7 @@ class ChatMemory:
 **Key Methods**:
 - `add_message(session_id, role, content, sources)`: Store message with optional sources
 - `get_history(session_id, limit)`: Retrieve conversation history
-- `get_context_for_rag(session_id, max_history)`: Format history for LLM context
 - `clear_session(session_id)`: Remove all messages for a session
-- `get_session_count()`: Get total active sessions
 
 **Thread Safety**:
 All operations use `self._lock` to ensure concurrent request safety.

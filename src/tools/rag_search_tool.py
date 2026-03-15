@@ -1,5 +1,5 @@
 from typing import List
-from haystack import Document, Document, Pipeline, component
+from haystack import Document, Pipeline, component
 
 
 @component

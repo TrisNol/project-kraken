@@ -1,5 +1,6 @@
 import os
 import uuid
+import logging
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
@@ -7,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from haystack.dataclasses import ChatMessage
 from haystack.tools import ComponentTool
+from haystack.components.generators.utils import print_streaming_chunk
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.agents import SoftwareDeveloperAgent
@@ -22,12 +24,13 @@ from src.common.models import (
 from src.core.chat_memory import ChatMemory
 from src.config import AppContainer, load_env_config
 from src.tools.utils import _docs_to_summary
+from src.tools.filter_docs_tool import FilterDocs
+
+logger = logging.getLogger(__name__)
 
 pipelines = {}
 loaders = {}
 chat_memory = ChatMemory(max_messages_per_session=50)
-
-agent_chat_memory = {}
 
 
 @asynccontextmanager
@@ -41,9 +44,6 @@ async def lifespan(app: FastAPI):
 
     pipelines["index"] = container.knowledge_index()
     pipelines["graph"] = container.knowledge_graph_service()
-
-    ###### TO BE MOVED ######
-    from src.tools.filter_docs_tool import FilterDocs
 
     rag_tool = ComponentTool(
         component=container.rag_search(),
@@ -92,9 +92,9 @@ async def lifespan(app: FastAPI):
             filter_docs_tool,
             fetch_neighbors_tool,
         ],
+        streaming_callback=print_streaming_chunk if container.config.app.environment() == "development" else None,
     )
     pipelines["agent"] = main_kraken_agent
-    ###### TO BE MOVED ######
 
     yield
     # Clean up before shutdown
@@ -184,7 +184,6 @@ async def create_index():
 async def clear_index():
     pipelines["index"].clear_index()
     chat_memory.clear_all()
-    agent_chat_memory.clear()
     return {"status": "index cleared"}
 
 
@@ -235,14 +234,14 @@ def _map_metadata(meta: dict) -> BaseMetadata:
 async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
     # Retrieve and print the session ID
     session_id = request.state.session_id
-    print(f"[Session ID: {session_id}] Processing question: {body.question[:50]}...")
+    logger.info(f"[Session ID: {session_id}] Received question: {body.question} with sources: {body.sources}")
 
     # Store user message in chat memory
     chat_memory.add_message(session_id, "user", body.question)
 
     allowed_sources = _normalize_requested_sources(body.sources)
 
-    session_state = agent_chat_memory.get(session_id, {"messages": [], "documents": []})
+    session_state = chat_memory.get_agent_state(session_id)
     session_documents = session_state.get("documents", [])
     if allowed_sources:
         session_documents = [
@@ -251,17 +250,14 @@ async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
             if str(doc.meta.get("type", "")).upper() in allowed_sources
         ]
 
-    session_state["messages"] = session_state["messages"] + [
-        ChatMessage.from_user(body.question)
-    ]
+    session_messages = session_state["messages"] + [ChatMessage.from_user(body.question)]
 
     # Seed agent state with documents from previous turn for multi-turn tool chaining
     result = pipelines["agent"].run(
-        messages=session_state["messages"],
+        messages=session_messages,
         documents=session_documents,
         allowed_sources=allowed_sources,
     )
-    print(result)
 
     result_documents = result.get("documents", [])
     if allowed_sources:
@@ -280,10 +276,11 @@ async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
     chat_memory.add_message(
         session_id, "assistant", result["last_message"].text, sources_dict
     )
-    agent_chat_memory[session_id] = {
-        "messages": result["messages"],
-        "documents": result_documents,
-    }
+    chat_memory.set_agent_state(
+        session_id,
+        messages=result["messages"],
+        documents=result_documents,
+    )
 
     return {
         "answer": result["last_message"].text,
@@ -321,8 +318,7 @@ async def clear_chat_history(request: Request):
     """
     session_id = request.state.session_id
     chat_memory.clear_session(session_id)
-    agent_chat_memory.pop(session_id, None)
-    print(f"[Session ID: {session_id}] Chat history cleared")
+    logger.info(f"[Session ID: {session_id}] Chat history cleared")
 
     return {"status": "cleared", "session_id": session_id}
 

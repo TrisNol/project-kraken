@@ -46,48 +46,50 @@ class FetchNeighbors:
         )
         try:
             seen_ids = set()
+            doc_ids = []
             # Track IDs of input documents to avoid duplicates
             for doc in documents:
                 doc_id = doc.meta.get("id", "")
                 if doc_id:
                     seen_ids.add(doc_id)
+                    doc_ids.append(doc_id)
+
+            if not doc_ids:
+                return {"documents": documents}
 
             neighbor_docs = []
             with driver.session(database=self.neo4j_database) as session:
-                for doc in documents:
-                    doc_id = doc.meta.get("id", "")
-                    if not doc_id:
+                result = session.run(
+                    """
+                    MATCH (d:Document)-[:REFERENCES]-(neighbor:Document)
+                    WHERE d.id IN $doc_ids
+                      AND ($allowed_sources IS NULL OR neighbor.type IN $allowed_sources)
+                    WITH DISTINCT neighbor
+                    OPTIONAL MATCH (c:Chunk)-[:PART_OF]->(neighbor)
+                    RETURN neighbor, collect(c.content) AS chunks
+                    """,
+                    doc_ids=doc_ids,
+                    allowed_sources=sorted(allowed_source_set)
+                    if allowed_source_set
+                    else None,
+                )
+
+                for record in result:
+                    neighbor_node = record["neighbor"]
+                    metadata = dict(neighbor_node)
+                    n_id = metadata.get("id", "")
+                    if n_id in seen_ids:
                         continue
-
-                    result = session.run(
-                        """
-                        MATCH (d:Document {id: $doc_id})-[:REFERENCES]-(neighbor:Document)
-                        WHERE $allowed_sources IS NULL OR neighbor.type IN $allowed_sources
-                        OPTIONAL MATCH (c:Chunk)-[:PART_OF]->(neighbor)
-                        RETURN neighbor, collect(c.content) AS chunks
-                        """,
-                        doc_id=doc_id,
-                        allowed_sources=sorted(allowed_source_set)
-                        if allowed_source_set
-                        else None,
+                    seen_ids.add(n_id)
+                    chunks = record["chunks"]
+                    content = (
+                        "\n---\n".join(c for c in chunks if c)
+                        if chunks
+                        else metadata.get("title", "")
                     )
-
-                    for record in result:
-                        neighbor_node = record["neighbor"]
-                        metadata = dict(neighbor_node)
-                        n_id = metadata.get("id", "")
-                        if n_id in seen_ids:
-                            continue
-                        seen_ids.add(n_id)
-                        chunks = record["chunks"]
-                        content = (
-                            "\n---\n".join(c for c in chunks if c)
-                            if chunks
-                            else metadata.get("title", "")
-                        )
-                        neighbor_docs.append(
-                            Document(content=content, meta=metadata)
-                        )
+                    neighbor_docs.append(
+                        Document(content=content, meta=metadata)
+                    )
 
             return {"documents": documents + neighbor_docs}
         finally:

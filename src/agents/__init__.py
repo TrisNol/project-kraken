@@ -1,5 +1,4 @@
 from haystack.components.agents import Agent
-from haystack.components.generators.utils import print_streaming_chunk
 
 from haystack.components.agents.state import replace_values
 
@@ -26,7 +25,7 @@ class SoftwareDeveloperAgent(Agent):
         - You may chain tools: search first, then filter or fetch neighbors to refine results.
         """
 
-    def __init__(self, chat_generator, tools, max_agent_steps=5):
+    def __init__(self, chat_generator, tools, max_agent_steps=5, streaming_callback=None):
         super().__init__(
             chat_generator=chat_generator,
             system_prompt=self.__system_prompt__,
@@ -36,5 +35,5 @@ class SoftwareDeveloperAgent(Agent):
                 "allowed_sources": {"type": list, "handler": replace_values},
             },
             tools=tools,
-            streaming_callback=print_streaming_chunk,
+            streaming_callback=streaming_callback,
         )
