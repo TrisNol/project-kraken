@@ -16,6 +16,12 @@ class RAGSearch:
         self.rag_pipeline = pipeline
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str) -> dict:
-        result = self.rag_pipeline.run({"text_embedder": {"text": query}})
+    def run(self, query: str, allowed_sources: List[str] | None = None) -> dict:
+        payload = {"text_embedder": {"text": query}}
+        if allowed_sources:
+            payload["retriever"] = {
+                "filters": {"type": [source.upper() for source in allowed_sources]}
+            }
+
+        result = self.rag_pipeline.run(payload)
         return {"documents": result["retriever"]["documents"]}

@@ -21,9 +21,25 @@ class FetchNeighbors:
         self.neo4j_database = neo4j_database
 
     @component.output_types(documents=List[Document])
-    def run(self, documents: List[Document]) -> dict:
+    def run(
+        self,
+        documents: List[Document],
+        allowed_sources: List[str] | None = None,
+    ) -> dict:
         if not documents:
             return {"documents": []}
+
+        allowed_source_set = {
+            source.upper() for source in (allowed_sources or []) if source
+        }
+        if allowed_source_set:
+            documents = [
+                doc
+                for doc in documents
+                if str(doc.meta.get("type", "")).upper() in allowed_source_set
+            ]
+            if not documents:
+                return {"documents": []}
 
         driver = GraphDatabase.driver(
             self.neo4j_url, auth=(self.neo4j_username, self.neo4j_password)
@@ -46,10 +62,14 @@ class FetchNeighbors:
                     result = session.run(
                         """
                         MATCH (d:Document {id: $doc_id})-[:REFERENCES]-(neighbor:Document)
+                        WHERE $allowed_sources IS NULL OR neighbor.type IN $allowed_sources
                         OPTIONAL MATCH (c:Chunk)-[:PART_OF]->(neighbor)
                         RETURN neighbor, collect(c.content) AS chunks
                         """,
                         doc_id=doc_id,
+                        allowed_sources=sorted(allowed_source_set)
+                        if allowed_source_set
+                        else None,
                     )
 
                     for record in result:

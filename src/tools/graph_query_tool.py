@@ -51,7 +51,7 @@ class GraphQuery:
         self.chat_generator = chat_generator
 
     @component.output_types(documents=List[Document])
-    def run(self, query: str) -> dict:
+    def run(self, query: str, allowed_sources: List[str] | None = None) -> dict:
         # Step 1: Use LLM to extract structured filters
         filters = self._extract_filters(query)
 
@@ -61,7 +61,10 @@ class GraphQuery:
         )
         try:
             with driver.session(database=self.neo4j_database) as session:
-                cypher, params = self._build_cypher(filters)
+                cypher, params = self._build_cypher(
+                    filters,
+                    allowed_sources=allowed_sources,
+                )
                 result = session.run(cypher, params)
 
                 documents = []
@@ -96,10 +99,17 @@ class GraphQuery:
             return {"text_search": query}
 
     @staticmethod
-    def _build_cypher(filters: dict) -> tuple[str, dict]:
+    def _build_cypher(
+        filters: dict,
+        allowed_sources: List[str] | None = None,
+    ) -> tuple[str, dict]:
         """Build a Cypher MATCH query from extracted filters."""
         conditions = []
         params = {}
+
+        if allowed_sources:
+            conditions.append("d.type IN $allowed_sources")
+            params["allowed_sources"] = [source.upper() for source in allowed_sources]
 
         # Exact-match properties
         exact_fields = [
