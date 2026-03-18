@@ -755,14 +755,14 @@ files = [
 
 [[package]]
 name = "haystack-ai"
-version = "2.25.2"
+version = "2.26.0"
 description = "LLM framework to build customizable, production-ready LLM applications. Connect components (models, vector DBs, file converters) to pipelines or agents that can interact with your data."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "haystack_ai-2.25.2-py3-none-any.whl", hash = "sha256:7079d585ea8358650366292a89e75e52ed0e4fd850f584e90cb496bd4d3b1a62"},
-    {file = "haystack_ai-2.25.2.tar.gz", hash = "sha256:e1be0ed36a379605c2cfbb7140585b77c56e2aa053339ab5d1d75826b48c44ec"},
+    {file = "haystack_ai-2.26.0-py3-none-any.whl", hash = "sha256:7860d9557972ead1e4829bd1d9fa8ed9c639c9211a32f9b02686e9ad2401d738"},
+    {file = "haystack_ai-2.26.0.tar.gz", hash = "sha256:7a782c27847cb0e20fb091934bd7003c50bd9afa45c38625fb962d3bdbfb2daf"},
 ]
 
 [package.dependencies]
