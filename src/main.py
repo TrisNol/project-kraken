@@ -3,19 +3,14 @@ import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from haystack.tools import ComponentTool
-from haystack.components.generators.utils import print_streaming_chunk
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.agents import SoftwareDeveloperAgent
 from src.api import api_router
 from src.core.chat_memory import ChatMemory
+from src.core.auth import MCPOAuthDiscoveryService, OAuthProvider, OAuthService, OAuthSessionStore
+from src.core.session_agent_manager import SessionAgentManager
 from src.config import AppContainer, load_env_config
-from src.tools.utils import _docs_to_summary
-from src.tools.filter_docs_tool import FilterDocs
-
-from src.tools.atlassian_mcp import atlassian_mcp_tool
-from src.tools.github_mcp import github_mcp_tool
+from src.tools.mcp_oauth_tools import provider_endpoint
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,21 +26,40 @@ async def lifespan(app: FastAPI):
     pipelines["index"] = container.knowledge_index()
     pipelines["graph"] = container.knowledge_graph_service()
 
-    main_kraken_agent = SoftwareDeveloperAgent(
-        chat_generator=container.llm_generator(),
-        tools=[
-            atlassian_mcp_tool,
-            github_mcp_tool,
-        ],
-        streaming_callback=print_streaming_chunk if container.config.app.environment() == "development" else None,
+    oauth_store = OAuthSessionStore(pending_ttl_seconds=600)
+    discovery = MCPOAuthDiscoveryService(
+        provider_endpoints={
+            OAuthProvider.GITHUB: provider_endpoint(OAuthProvider.GITHUB),
+            OAuthProvider.ATLASSIAN: provider_endpoint(OAuthProvider.ATLASSIAN),
+        },
+        fallback_authorization_servers={
+            OAuthProvider.GITHUB: container.config.oauth.github_authorization_server(),
+            OAuthProvider.ATLASSIAN: container.config.oauth.atlassian_authorization_server(),
+        },
     )
-    pipelines["agent"] = main_kraken_agent
+    oauth_service = OAuthService(
+        session_store=oauth_store,
+        discovery_service=discovery,
+        frontend_base_url=container.config.auth.frontend_base_url(),
+        backend_base_url=container.config.auth.backend_base_url(),
+        provider_scopes={
+            OAuthProvider.GITHUB: container.config.oauth.github_scope(),
+            OAuthProvider.ATLASSIAN: container.config.oauth.atlassian_scope(),
+        },
+        fallback_access_tokens=OAuthService.build_fallback_access_tokens_from_env(),
+        preconfigured_clients=OAuthService.build_preconfigured_clients_from_env(),
+    )
+    app.state.oauth_service = oauth_service
+    app.state.session_agent_manager = SessionAgentManager(
+        oauth_service=oauth_service,
+        llm_generator_factory=container.llm_generator,
+        is_dev=container.config.app.environment() == "development",
+    )
 
     yield
 
     # Clean up before shutdown
-    atlassian_mcp_tool.close()
-    github_mcp_tool.close()
+    app.state.session_agent_manager.clear_all()
     pipelines.clear()
     loaders.clear()
 

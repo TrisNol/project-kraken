@@ -1,12 +1,31 @@
 <div class="chat">
     <div class="chat__header">
         <h2>Chat</h2>
-        @if (messages().length > 0) {
-        <button type="button" class="clear-btn" (click)="clearHistory()" title="Clear chat history">
-            <i class="pi pi-trash" aria-hidden="true"></i>
-            <span class="visually-hidden">Clear chat history</span>
-        </button>
-        }
+        <div class="header-actions">
+            <div class="auth-controls" role="group" aria-label="Provider connections">
+                <button
+                    type="button"
+                    class="provider-btn"
+                    [class.provider-btn--connected]="providerStatus().github"
+                    (click)="shouldDisconnect('github') ? disconnectProvider('github') : connectProvider('github')">
+                    GitHub
+                </button>
+                <button
+                    type="button"
+                    class="provider-btn"
+                    [class.provider-btn--connected]="providerStatus().atlassian"
+                    (click)="shouldDisconnect('atlassian') ? disconnectProvider('atlassian') : connectProvider('atlassian')">
+                    Atlassian
+                </button>
+            </div>
+
+            @if (messages().length > 0) {
+            <button type="button" class="clear-btn" (click)="clearHistory()" title="Clear chat history">
+                <i class="pi pi-trash" aria-hidden="true"></i>
+                <span class="visually-hidden">Clear chat history</span>
+            </button>
+            }
+        </div>
     </div>
 
     <div class="chat__messages" aria-live="polite">

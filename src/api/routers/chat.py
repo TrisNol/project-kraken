@@ -59,7 +59,7 @@ def _map_metadata(meta: dict) -> BaseMetadata:
 @router.post("/ask", response_model=ResponseModel)
 async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
     chat_memory = request.app.state.chat_memory
-    pipelines = request.app.state.pipelines
+    agent_manager = request.app.state.session_agent_manager
 
     session_id = request.state.session_id
     logger.info(
@@ -83,7 +83,9 @@ async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
 
     session_messages = session_state["messages"] + [ChatMessage.from_user(body.question)]
 
-    result = pipelines["agent"].run(
+    agent = await agent_manager.get_or_create_agent(session_id)
+
+    result = agent.run(
         messages=session_messages,
         documents=session_documents,
         allowed_sources=allowed_sources,
@@ -141,8 +143,10 @@ async def get_chat_history(request: Request) -> dict:
 async def clear_chat_history(request: Request) -> dict[str, str]:
     session_id = request.state.session_id
     chat_memory = request.app.state.chat_memory
+    agent_manager = request.app.state.session_agent_manager
 
     chat_memory.clear_session(session_id)
+    agent_manager.clear_session(session_id)
     logger.info("[Session ID: %s] Chat history cleared", session_id)
 
     return {"status": "cleared", "session_id": session_id}

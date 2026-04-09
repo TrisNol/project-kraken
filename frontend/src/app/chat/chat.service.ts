@@ -48,6 +48,19 @@ export interface ChatHistoryResponse {
   }>;
 }
 
+export interface ProviderStatus {
+  provider: 'github' | 'atlassian';
+  connected: boolean;
+  connection_type?: 'oauth' | 'fallback' | 'none';
+  expires_at?: string | null;
+  scope?: string | null;
+}
+
+export interface AuthMeResponse {
+  session_id: string;
+  providers: ProviderStatus[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   // Optionally allow overriding the API base URL by setting (window as any).__API_URL__ = 'http://localhost:8000'
@@ -146,6 +159,55 @@ export class ChatService {
       }
     } catch (err) {
       console.error('Error clearing chat history:', err);
+    }
+  }
+
+  async getAuthStatus(): Promise<ProviderStatus[]> {
+    const url = `${this.apiBase}/auth/me`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        console.warn(`Failed to fetch auth status: ${res.status}`);
+        return [];
+      }
+
+      const data = (await res.json()) as AuthMeResponse;
+      return data.providers ?? [];
+    } catch (err) {
+      console.error('Error fetching auth status:', err);
+      return [];
+    }
+  }
+
+  connectProvider(provider: ProviderStatus['provider'], mode?: 'oauth'): void {
+    const query = mode ? `?mode=${encodeURIComponent(mode)}` : '';
+    const connectUrl = `${this.apiBase}/auth/${provider}/connect${query}`;
+    window.location.assign(connectUrl);
+  }
+
+  async disconnectProvider(provider: ProviderStatus['provider']): Promise<boolean> {
+    const url = `${this.apiBase}/auth/${provider}/disconnect`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+      return res.ok;
+    } catch (err) {
+      console.error(`Error disconnecting provider ${provider}:`, err);
+      return false;
     }
   }
 

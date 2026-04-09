@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ChatService, ChatMessage } from './chat.service';
+import { ChatService, ChatMessage, ProviderStatus } from './chat.service';
 import { MarkdownComponent } from 'ngx-markdown';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { PopoverModule } from 'primeng/popover';
@@ -19,6 +19,14 @@ export class ChatComponent {
     input = signal('');
     isThinking = signal(false);
     messages = signal<ChatMessage[]>([]);
+    providerStatus = signal<Record<ProviderStatus['provider'], boolean>>({
+        github: false,
+        atlassian: false,
+    });
+    providerConnectionType = signal<Record<ProviderStatus['provider'], 'oauth' | 'fallback' | 'none'>>({
+        github: 'none',
+        atlassian: 'none',
+    });
 
     // Sources multi-select (settings)
     selectedSources: string[] = ['JIRA', 'CONFLUENCE', 'GITHUB'];
@@ -41,6 +49,36 @@ export class ChatComponent {
         
         // Load chat history on initialization
         this.loadChatHistory();
+        this.loadProviderStatus();
+        this.reportOAuthCallbackStatus();
+    }
+
+    private reportOAuthCallbackStatus() {
+        const params = new URLSearchParams(window.location.search);
+        const status = params.get('status');
+        const provider = params.get('provider');
+        const error = params.get('error');
+        if (status === 'error' && provider && error) {
+            console.error(`[OAuth ${provider}] ${error}`);
+        }
+    }
+
+    private async loadProviderStatus() {
+        const status = await this.chat.getAuthStatus();
+        const nextState: Record<ProviderStatus['provider'], boolean> = {
+            github: false,
+            atlassian: false,
+        };
+        const nextConnectionType: Record<ProviderStatus['provider'], 'oauth' | 'fallback' | 'none'> = {
+            github: 'none',
+            atlassian: 'none',
+        };
+        for (const item of status) {
+            nextState[item.provider] = item.connected;
+            nextConnectionType[item.provider] = item.connection_type ?? 'none';
+        }
+        this.providerStatus.set(nextState);
+        this.providerConnectionType.set(nextConnectionType);
     }
 
     private async loadChatHistory() {
@@ -60,6 +98,22 @@ export class ChatComponent {
             this.messages.set([]);
         } catch (err) {
             console.error('Failed to clear chat history:', err);
+        }
+    }
+
+    connectProvider(provider: ProviderStatus['provider']) {
+        const mode = this.providerConnectionType()[provider] === 'fallback' ? 'oauth' : undefined;
+        this.chat.connectProvider(provider, mode);
+    }
+
+    shouldDisconnect(provider: ProviderStatus['provider']): boolean {
+        return this.providerStatus()[provider] && this.providerConnectionType()[provider] !== 'fallback';
+    }
+
+    async disconnectProvider(provider: ProviderStatus['provider']) {
+        const ok = await this.chat.disconnectProvider(provider);
+        if (ok) {
+            await this.loadProviderStatus();
         }
     }
 
