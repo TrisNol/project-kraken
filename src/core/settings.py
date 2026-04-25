@@ -69,7 +69,7 @@ def create_llm_generator(
             )
         return OpenAIChatGenerator(
             api_base_url=azure_openai_endpoint,
-            api_key=azure_openai_api_key,
+            api_key=Secret.from_token(azure_openai_api_key),
             model=azure_deployment_name or model,
         )
     elif provider == 'ollama':
