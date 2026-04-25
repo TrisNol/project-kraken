@@ -104,7 +104,7 @@ sequenceDiagram
 
 ## Configuration
 
-Project Kraken currently supports both [ollama](https://ollama.com/) and [OpenAI](https://openai.com/api/) as your GenAI provider.
+Project Kraken currently supports [ollama](https://ollama.com/), [OpenAI](https://openai.com/api/) and [Azure OpenAI](https://learn.microsoft.com/en-us/azure/foundry/openai/reference) as your GenAI provider.
 
 Configuration is centralized through:
 
