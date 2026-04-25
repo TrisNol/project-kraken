@@ -2,6 +2,7 @@ from typing import Any
 
 from haystack.utils import Secret
 
+# ollama providers
 try:
     from haystack_integrations.components.generators.ollama import (
         OllamaChatGenerator,
@@ -15,6 +16,7 @@ try:
 except Exception:
     OllamaChatGenerator = OllamaTextEmbedder = OllamaDocumentEmbedder = None
 
+# OpenAI providers
 try:
     from haystack.components.generators.chat import OpenAIChatGenerator
     from haystack.components.embedders import OpenAITextEmbedder, OpenAIDocumentEmbedder
@@ -23,11 +25,25 @@ except Exception:
         OpenAIDocumentEmbedder
     ) = None
 
+# AzureOpenAI providers
+try:
+    from haystack.components.generators.chat import AzureOpenAIChatGenerator
+    from haystack.components.embedders import (
+        AzureOpenAITextEmbedder,
+        AzureOpenAIDocumentEmbedder,
+    )
+except Exception:
+    AzureOpenAIChatGenerator = AzureOpenAITextEmbedder = (
+        AzureOpenAIDocumentEmbedder
+    ) = None
+
 def create_llm_generator(
     provider: str,
     model: str | None,
     host: str | None,
     openai_api_key: str | None,
+    azure_openai_endpoint: str | None,
+    azure_openai_api_key: str | None,
 ) -> Any:
     """Create and return a chat generator instance for the given provider.
 
@@ -45,12 +61,24 @@ def create_llm_generator(
         raise ImportError(
             "OpenAI chat generator is not available. Install haystack with OpenAI support."
         )
-    else:
+    elif provider == 'azure':
+        if AzureOpenAIChatGenerator is None:
+            raise ImportError(
+                "Azure OpenAI chat generator is not available. Install haystack with Azure OpenAI support."
+            )
+        return OpenAIChatGenerator(
+            api_base_url=azure_openai_endpoint,
+            api_key=azure_openai_api_key,
+            model=model,
+        )
+    elif provider == 'ollama':
         if OllamaChatGenerator is None:
             raise ImportError(
                 "Ollama chat generator is not available. Install haystack-integrations with Ollama support."
             )
         return OllamaChatGenerator(model=model, url=host)
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
 
 
 def create_text_embedder(
@@ -58,6 +86,9 @@ def create_text_embedder(
     model: str | None,
     host: str | None,
     openai_api_key: str | None,
+    azure_openai_endpoint: str | None,
+    azure_openai_api_key: str | None,
+    azure_openai_api_version: str | None,
     embedding_dimension: int,
 ) -> Any:
     """Create and return a text embedder instance for the given provider.
@@ -75,12 +106,26 @@ def create_text_embedder(
             api_key=Secret.from_token(openai_api_key),
             dimensions=embedding_dimension,
         )
-    else:
+    elif provider == 'azure':
+        if AzureOpenAITextEmbedder is None:
+            raise ImportError(
+                "Azure OpenAI text embedder is not available. Install haystack with Azure OpenAI support."
+            )
+        return AzureOpenAITextEmbedder(
+            azure_deployment=model,
+            azure_endpoint=azure_openai_endpoint,
+            api_key=Secret.from_token(azure_openai_api_key),
+            api_version=azure_openai_api_version,
+            dimensions=embedding_dimension,
+        )
+    elif provider == 'ollama':
         if OllamaTextEmbedder is None:
             raise ImportError(
                 "Ollama text embedder is not available. Install haystack-integrations with Ollama support."
             )
         return OllamaTextEmbedder(model=model, url=host)
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
 
 
 def create_document_embedder(
@@ -88,6 +133,9 @@ def create_document_embedder(
     model: str | None,
     host: str | None,
     openai_api_key: str | None,
+    azure_openai_endpoint: str | None,
+    azure_openai_api_key: str | None,
+    azure_openai_api_version: str | None,
     embedding_dimension: int,
 ) -> Any:
     """Create and return a document embedder for indexing.
@@ -105,9 +153,23 @@ def create_document_embedder(
             api_key=Secret.from_token(openai_api_key),
             dimensions=embedding_dimension,
         )
-    else:
+    elif provider == 'azure':
+        if AzureOpenAIDocumentEmbedder is None:
+            raise ImportError(
+                "Azure OpenAI document embedder is not available. Install haystack with Azure OpenAI support."
+            )
+        return AzureOpenAIDocumentEmbedder(
+            azure_deployment=model,
+            azure_endpoint=azure_openai_endpoint,
+            api_key=Secret.from_token(azure_openai_api_key),
+            api_version=azure_openai_api_version,
+            dimensions=embedding_dimension,
+        )
+    elif provider == 'ollama':
         if OllamaDocumentEmbedder is None:
             raise ImportError(
                 "Ollama document embedder is not available. Install haystack-integrations with Ollama support."
             )
         return OllamaDocumentEmbedder(model=model, url=host)
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
