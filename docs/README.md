@@ -85,7 +85,7 @@ sequenceDiagram
     participant Agent as Agentic RAG Agent
     participant Tools as Retrieval Tools
     participant Neo4j as Neo4j
-    participant LLM as LLM (Ollama/OpenAI)
+    participant LLM as LLM (Ollama/OpenAI/Azure OpenAI)
     
     User->>UI: Ask question + selected sources
     UI->>API: POST /ask { question, sources }
