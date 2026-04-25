@@ -72,6 +72,10 @@ def load_env_config() -> dict:
             "embedding_model": os.getenv("LLM_EMBEDDING_MODEL"),
             "host": os.getenv("LLM_HOST"),
             "openai_api_key": os.getenv("OPENAI_API_KEY"),
+            "azure_deployment_name": os.getenv("AZURE_DEPLOYMENT_NAME"),
+            "azure_openai_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+            "azure_openai_api_key": os.getenv("AZURE_OPENAI_API_KEY"),
+            "azure_openai_api_version": os.getenv("AZURE_OPENAI_API_VERSION"),
         },
     }
 
@@ -140,6 +144,9 @@ class AppContainer(containers.DeclarativeContainer):
         model=config.llm.chat_model,
         host=config.llm.host,
         openai_api_key=config.llm.openai_api_key,
+        azure_deployment_name=config.llm.azure_deployment_name,
+        azure_openai_endpoint=config.llm.azure_openai_endpoint,
+        azure_openai_api_key=config.llm.azure_openai_api_key,
     )
     document_embedder = providers.Factory(
         create_document_embedder,
@@ -147,6 +154,9 @@ class AppContainer(containers.DeclarativeContainer):
         model=config.llm.embedding_model,
         host=config.llm.host,
         openai_api_key=config.llm.openai_api_key,
+        azure_openai_endpoint=config.llm.azure_openai_endpoint,
+        azure_openai_api_key=config.llm.azure_openai_api_key,
+        azure_openai_api_version=config.llm.azure_openai_api_version,
         embedding_dimension=config.embedding.dimension,
     )
     text_embedder = providers.Factory(
@@ -155,6 +165,9 @@ class AppContainer(containers.DeclarativeContainer):
         model=config.llm.embedding_model,
         host=config.llm.host,
         openai_api_key=config.llm.openai_api_key,
+        azure_openai_endpoint=config.llm.azure_openai_endpoint,
+        azure_openai_api_key=config.llm.azure_openai_api_key,
+        azure_openai_api_version=config.llm.azure_openai_api_version,
         embedding_dimension=config.embedding.dimension,
     )
 

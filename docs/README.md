@@ -85,7 +85,7 @@ sequenceDiagram
     participant Agent as Agentic RAG Agent
     participant Tools as Retrieval Tools
     participant Neo4j as Neo4j
-    participant LLM as LLM (Ollama/OpenAI)
+    participant LLM as LLM (Ollama/OpenAI/Azure OpenAI)
     
     User->>UI: Ask question + selected sources
     UI->>API: POST /ask { question, sources }
@@ -104,7 +104,7 @@ sequenceDiagram
 
 ## Configuration
 
-Project Kraken currently supports both [ollama](https://ollama.com/) and [OpenAI](https://openai.com/api/) as your GenAI provider.
+Project Kraken currently supports [ollama](https://ollama.com/), [OpenAI](https://openai.com/api/) and [Azure OpenAI](https://learn.microsoft.com/en-us/azure/foundry/openai/reference) as your GenAI provider.
 
 Configuration is centralized through:
 
