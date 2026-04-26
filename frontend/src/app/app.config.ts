@@ -5,7 +5,7 @@ import { routes } from './app.routes';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { providePrimeNG } from 'primeng/config';
 import Aura from '@primeuix/themes/aura';
-import { provideMarkdown } from 'ngx-markdown';
+import { MERMAID_OPTIONS, provideMarkdown } from 'ngx-markdown';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -20,6 +20,13 @@ export const appConfig: ApplicationConfig = {
       }
     }),
     provideMarkdown({
+      mermaidOptions: {
+        provide: MERMAID_OPTIONS,
+        useValue: {
+          darkMode: true,
+          look: 'handDrawn'
+        }
+      }
     })
   ]
 };
