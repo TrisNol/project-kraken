@@ -15,7 +15,7 @@
             [class.bubble--assistant]="msg.role === 'assistant'">
             <div class="bubble__content">
                 @if (msg.role === 'assistant') {
-                <markdown [data]="msg.content"></markdown>
+                <markdown mermaid [data]="msg.content"></markdown>
                 } @else {
                 {{ msg.content }}
                 }
@@ -53,7 +53,8 @@
         <p-popover #popover [dismissable]="true" appendTo="body">
             <div class="chat__settings" role="region" aria-label="Chat sources settings">
                 <p-multiSelect [options]="sourceOptions" [(ngModel)]="selectedSources" name="sources"
-                    [ngModelOptions]="{standalone: true}" optionLabel="label" optionValue="value" placeholder="Select sources">
+                    [ngModelOptions]="{standalone: true}" optionLabel="label" optionValue="value"
+                    placeholder="Select sources">
                 </p-multiSelect>
             </div>
         </p-popover>
