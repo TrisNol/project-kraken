@@ -31,5 +31,5 @@ packages = [{include = "src"}]
 
 [dependency-groups]
 docs = [
-    "zensical (>=0.0.23,<0.0.24)"
+    "zensical (>=0.0.43,<0.0.44)"
 ]
