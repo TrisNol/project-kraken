@@ -6,7 +6,7 @@ import { SettingsService } from './settings.service';
 interface ConfigSection {
   title: string;
   isDev?: boolean;
-  items: Record<string, any>;
+  items: Record<string, unknown>;
 }
 
 @Component({
