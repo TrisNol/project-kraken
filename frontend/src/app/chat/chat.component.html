@@ -1,12 +1,31 @@
 <div class="chat">
     <div class="chat__header">
         <h2>Chat</h2>
-        @if (messages().length > 0) {
-        <button type="button" class="clear-btn" (click)="clearHistory()" title="Clear chat history">
-            <i class="pi pi-trash" aria-hidden="true"></i>
-            <span class="visually-hidden">Clear chat history</span>
-        </button>
-        }
+        <div class="header-actions">
+            <div class="auth-controls" role="group" aria-label="Provider connections">
+                <button
+                    type="button"
+                    class="provider-btn"
+                    [class.provider-btn--connected]="providerStatus().github"
+                    (click)="shouldDisconnect('github') ? disconnectProvider('github') : connectProvider('github')">
+                    GitHub
+                </button>
+                <button
+                    type="button"
+                    class="provider-btn"
+                    [class.provider-btn--connected]="providerStatus().atlassian"
+                    (click)="shouldDisconnect('atlassian') ? disconnectProvider('atlassian') : connectProvider('atlassian')">
+                    Atlassian
+                </button>
+            </div>
+
+            @if (messages().length > 0) {
+            <button type="button" class="clear-btn" (click)="clearHistory()" title="Clear chat history">
+                <i class="pi pi-trash" aria-hidden="true"></i>
+                <span class="visually-hidden">Clear chat history</span>
+            </button>
+            }
+        </div>
     </div>
 
     <div class="chat__messages" aria-live="polite">
@@ -51,11 +70,55 @@
             <span class="visually-hidden">Settings</span>
         </button>
         <p-popover #popover [dismissable]="true" appendTo="body">
-            <div class="chat__settings" role="region" aria-label="Chat sources settings">
-                <p-multiSelect [options]="sourceOptions" [(ngModel)]="selectedSources" name="sources"
-                    [ngModelOptions]="{standalone: true}" optionLabel="label" optionValue="value"
-                    placeholder="Select sources">
-                </p-multiSelect>
+            <div class="chat__settings" role="region" aria-label="Chat settings">
+                <!-- Chat Mode Selection -->
+                <div class="setting-group">
+                    <label for="chatMode">Chat Mode</label>
+                    <p-select 
+                        id="chatMode"
+                        [options]="chatModeOptions" 
+                        [ngModel]="chatMode()"
+                        (ngModelChange)="chatMode.set($event)"
+                        [ngModelOptions]="{standalone: true}"
+                        optionLabel="label" 
+                        optionValue="value"
+                        placeholder="Select chat mode"
+                        >
+                    </p-select>
+                </div>
+
+                <!-- MCP Auth Type (only shown when MCP mode is selected) -->
+                @if (chatMode() === 'mcp') {
+                <div class="setting-group">
+                    <label for="mcpAuthType">MCP Authentication</label>
+                    <p-select 
+                        id="mcpAuthType"
+                        [options]="mcpAuthTypeOptions" 
+                        [ngModel]="mcpAuthType()"
+                        (ngModelChange)="mcpAuthType.set($event)"
+                        [ngModelOptions]="{standalone: true}"
+                        optionLabel="label" 
+                        optionValue="value"
+                        placeholder="Select auth type"
+                        >
+                    </p-select>
+                </div>
+                }
+
+                <!-- Sources Selection -->
+                <div class="setting-group">
+                    <label for="sources">Knowledge Sources</label>
+                    <p-multiSelect 
+                        id="sources"
+                        [options]="sourceOptions" 
+                        [(ngModel)]="selectedSources" 
+                        name="sources"
+                        [ngModelOptions]="{standalone: true}" 
+                        optionLabel="label" 
+                        optionValue="value"
+                        placeholder="Select sources">
+                    </p-multiSelect>
+                </div>
             </div>
         </p-popover>
 

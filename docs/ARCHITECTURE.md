@@ -8,7 +8,7 @@ The knowledge base has been refactored to implement a two-tier persistence model
 
 This separation provides clearer semantics and better performance for both graph visualization and semantic search.
 
-The query runtime uses an **Agentic RAG** approach. The `/ask` endpoint invokes a tool-using agent that can combine semantic retrieval, graph lookup, neighborhood expansion, and relevance filtering in one execution.
+The query runtime now supports two session-scoped modes selected by the UI: a **RAG agent** for knowledge-graph retrieval and an **MCP agent** for OAuth-backed external tool access. The `/ask` endpoint resolves the correct agent through the session agent manager, so each request runs under the selected mode and the current user identity.
 
 ## System Architecture
 
@@ -37,8 +37,15 @@ graph TB
             RM[RelationshipManager]
         end
         
-        subgraph "Agentic Query Layer"
-            Agent[SoftwareDeveloperAgent]
+        subgraph "Agent Selection"
+            API[Ask Endpoint]
+            SMA[SessionAgentManager]
+            RAG[RAGAgent]
+            MCP[MCPAgent]
+            OAuth[OAuthService]
+        end
+
+        subgraph "RAG Query Layer"
             RAGTool[RAGSearch Tool]
             GraphTool[GraphQuery Tool]
             NeighborTool[FetchNeighbors Tool]
@@ -47,13 +54,15 @@ graph TB
             GS[KnowledgeGraphService]
         end
 
+        subgraph "MCP Query Layer"
+            MCPTools[MCP Toolsets]
+        end
+
         subgraph "Configuration"
             CFG[load_env_config]
             DI[AppContainer]
             SET[LLM/Embedder Factory Utils]
         end
-        
-        API[FastAPI Endpoints]
     end
     
     subgraph "Storage"
@@ -62,7 +71,7 @@ graph TB
     end
     
     subgraph "Frontend - Angular"
-        UI[User Interface]
+        UI[Chat UI + Mode Selector]
         Chat[Chat Component]
         Graph[Graph Component]
     end
@@ -86,24 +95,29 @@ graph TB
     
     CFG --> DI
     SET --> DI
-    DI --> Agent
+    UI --> API
+    API --> SMA
+    SMA --> RAG
+    SMA --> MCP
+    MCP --> OAuth
     DI --> RAGTool
     DI --> GraphTool
     DI --> NeighborTool
     DI --> CR
 
-    API --> Agent
     API --> GS
-    Agent --> RAGTool
-    Agent --> GraphTool
-    Agent --> NeighborTool
-    Agent --> FilterTool
+    RAG --> RAGTool
+    RAG --> GraphTool
+    RAG --> NeighborTool
+    RAG --> FilterTool
+    MCP --> MCPTools
 
     RAGTool --> CR
     CR --> Neo4j
     GraphTool --> Neo4j
     NeighborTool --> Neo4j
-    Agent --> Ollama
+    RAG --> Ollama
+    MCP --> Ollama
     GS --> Neo4j
     
     UI --> Chat
@@ -289,14 +303,33 @@ sequenceDiagram
 
 ## Key Components
 
-### SoftwareDeveloperAgent
+### SessionAgentManager
+**Path**: `src/core/session_agent_manager.py`
+
+Session-scoped orchestrator for chat mode selection:
+
+- Resolves the correct agent for the current request using `chat_mode`
+- Reuses or rebuilds the agent when the token signature or auth type changes
+- Builds MCP toolsets from backend-stored OAuth tokens on demand
+- Keeps RAG and MCP state isolated per session
+
+### RAGAgent
 **Path**: `src/agents/__init__.py`
 
-Central orchestrator for Agentic RAG:
+RAG-oriented agent for knowledge graph retrieval:
 
 - Decides which retrieval tool(s) to call per query
 - Chains tools within one run (search -> neighbors -> filter)
 - Maintains `documents` and `allowed_sources` in agent state
+
+### MCPAgent
+**Path**: `src/agents/__init__.py`
+
+MCP-oriented agent for external tool access:
+
+- Uses GitHub and Atlassian MCP toolsets
+- Relies on backend-issued OAuth tokens or fallback service credentials
+- Keeps provider identity isolated to the active session
 
 ### RAGSearch
 **Path**: `src/tools/rag_search_tool.py`
@@ -483,31 +516,56 @@ if len(self._memory[session_id]) > self.max_messages_per_session:
     self._memory[session_id] = self._memory[session_id][-self.max_messages_per_session:]
 ```
 
-### Conversational Agentic RAG Pipeline
+### Conversational Query Pipeline
 
-The conversational flow keeps multi-turn context in session memory and lets the agent choose tools at each turn.
+The conversational flow keeps multi-turn context in session memory and routes each request to either the RAG or MCP agent based on the UI-selected `chat_mode`.
 
 1. **Session Context Stage**: Previous messages and retained documents are loaded from `ChatMemory`
-2. **Tool-Orchestrated Retrieval Stage**: Agent selects and chains retrieval tools using the current question and source filters
-3. **Answer Stage**: LLM answers using the final curated document set
+2. **Mode Resolution Stage**: `SessionAgentManager` returns the RAG or MCP agent for the current session
+3. **Execution Stage**: The selected agent uses its toolset and the current source filters
+4. **Answer Stage**: LLM answers using the final curated result set
 
-**Pipeline Components** (`src/main.py`, `src/agents/__init__.py`, `src/tools/*.py`):
+**Pipeline Components** (`src/main.py`, `src/core/session_agent_manager.py`, `src/agents/__init__.py`, `src/tools/*.py`):
 
 ```mermaid
 graph LR
     Q[Question] --> API["/ask Endpoint"]
     S[Session Memory] --> API
-    API --> AG[SoftwareDeveloperAgent]
-    AG --> T1[RAGSearch]
-    AG --> T2[GraphQuery]
-    AG --> T3[FetchNeighbors]
-    AG --> T4[FilterDocs]
+    API --> SMA[SessionAgentManager]
+    SMA --> RAG[RAGAgent]
+    SMA --> MCP[MCPAgent]
+    RAG --> T1[RAGSearch]
+    RAG --> T2[GraphQuery]
+    RAG --> T3[FetchNeighbors]
+    RAG --> T4[FilterDocs]
+    MCP --> T5[MCP Toolsets]
     T1 --> N[(Neo4j)]
     T2 --> N
     T3 --> N
-    AG --> LLM[Answer LLM]
+    RAG --> LLM[Answer LLM]
+    MCP --> LLM
     LLM --> A[Answer + Sources]
 ```
+
+### MCP OAuth Setup
+
+MCP mode uses backend-hosted OAuth 2.1 with session storage and provider discovery.
+
+- The frontend starts connect/disconnect actions but never handles tokens directly.
+- `OAuthService` discovers the provider metadata at runtime, including protected-resource and authorization-server details.
+- The backend creates PKCE state, stores the pending transaction in the session store, and exchanges the callback code for tokens.
+- Token refresh happens on demand, and the session agent manager rebuilds MCP toolsets from the latest valid token set.
+- Atlassian prefers discovery-first OAuth with dynamic client registration when available.
+- GitHub uses discovery when possible and falls back to preconfigured client registration when DCR is unavailable.
+
+**Service credentials fallback**: when `mcp_auth_type` is `service_credentials`, the session agent manager bypasses per-user OAuth and builds MCP toolsets from static tokens read at startup:
+
+| Provider | Env vars (first match wins) |
+|---|---|
+| GitHub | `GITHUB_SERVICE_ACCESS_TOKEN`, `GITHUB_ACCESS_TOKEN`, `MCP_GITHUB_ACCESS_TOKEN` |
+| Atlassian | `ATLASSIAN_SERVICE_ACCESS_TOKEN`, `ATLASSIAN_ACCESS_TOKEN`, `MCP_ATLASSIAN_ACCESS_TOKEN` |
+
+A GitHub OAuth app client can also be pre-registered via `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` (aliases: `GITHUB_APP_CLIENT_ID` / `GITHUB_APP_CLIENT_SECRET`) to allow PKCE-based authorization without DCR.
 
 ### Security & Privacy
 

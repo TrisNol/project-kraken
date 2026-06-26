@@ -1,12 +1,54 @@
 <div class="settings">
   <h2>Settings</h2>
 
+  <div class="config-section">
+    <h3>Configuration</h3>
+    
+    @if (configLoading()) {
+      <div class="loading">Loading configuration...</div>
+    }
+    @if (configError()) {
+      <div class="error">{{ configError() }}</div>
+    }
+    
+    @if (config()) {
+      <div class="config-items">
+        @for (section of config() | keyvalue; track section.key) {
+          <div class="config-group">
+            <div class="group-header" [class.dev-environment]="section.value.isDev">
+              <h4>{{ section.value.title }}</h4>
+              @if (section.value.isDev) {
+                <span class="badge development">Development</span>
+              }
+              @if (!section.value.isDev && section.key === 'app') {
+                <span class="badge production">Production</span>
+              }
+            </div>
+            
+            <div class="group-items">
+              @for (item of getSectionEntries(section.value); track item[0]) {
+                <div class="config-item">
+                  <span class="label">{{ item[0] | titlecase }}</span>
+                  <span class="value" [class.boolean]="typeof item[1] === 'boolean'">
+                    {{ formatValue(item[1]) }}
+                  </span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
   <div class="actions">
     <button pButton type="button" label="Ingest data to Knowledge Graph" (click)="ingest()" [disabled]="isWorking()"></button>
     <button pButton type="button" label="Reset Knowledge Graph" (click)="clear()" [disabled]="isWorking()"></button>
   </div>
 
-  <div class="status" [hidden]="!message()">
-    <pre class="message">{{ message() }}</pre>
-  </div>
+  @if (message()) {
+    <div class="status">
+      <pre class="message">{{ message() }}</pre>
+    </div>
+  }
 </div>

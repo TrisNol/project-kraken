@@ -6,10 +6,12 @@ from pydantic import BaseModel, Field
 
 from src.common.models import (
     BaseMetadata,
+    ChatMode,
     ConfluenceMetadata,
     DocumentSourceType,
     GitHubMetadata,
     JiraMetadata,
+    MCPAuthType,
     ResponseModel,
 )
 
@@ -20,6 +22,8 @@ router = APIRouter(tags=["chat"])
 class AskRequest(BaseModel):
     question: str
     sources: list[str] = Field(default_factory=list)
+    chat_mode: ChatMode = Field(default=ChatMode.MCP, description="Chat mode: 'rag' or 'mcp'")
+    mcp_auth_type: MCPAuthType = Field(default=MCPAuthType.OAUTH, description="MCP authentication type: 'oauth' or 'service_credentials'") 
 
 
 def _normalize_requested_sources(sources: list[str] | None) -> list[str]:
@@ -59,14 +63,16 @@ def _map_metadata(meta: dict) -> BaseMetadata:
 @router.post("/ask", response_model=ResponseModel)
 async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
     chat_memory = request.app.state.chat_memory
-    pipelines = request.app.state.pipelines
+    agent_manager = request.app.state.session_agent_manager
 
     session_id = request.state.session_id
     logger.info(
-        "[Session ID: %s] Received question: %s with sources: %s",
+        "[Session ID: %s] Received question: %s with sources: %s (mode: %s, auth: %s)",
         session_id,
         body.question,
         body.sources,
+        body.chat_mode,
+        body.mcp_auth_type,
     )
 
     chat_memory.add_message(session_id, "user", body.question)
@@ -83,7 +89,13 @@ async def answer_question(body: AskRequest, request: Request) -> ResponseModel:
 
     session_messages = session_state["messages"] + [ChatMessage.from_user(body.question)]
 
-    result = pipelines["agent"].run(
+    agent = await agent_manager.get_or_create_agent(
+        session_id,
+        chat_mode=body.chat_mode,
+        mcp_auth_type=body.mcp_auth_type,
+    )
+
+    result = agent.run(
         messages=session_messages,
         documents=session_documents,
         allowed_sources=allowed_sources,
@@ -141,8 +153,10 @@ async def get_chat_history(request: Request) -> dict:
 async def clear_chat_history(request: Request) -> dict[str, str]:
     session_id = request.state.session_id
     chat_memory = request.app.state.chat_memory
+    agent_manager = request.app.state.session_agent_manager
 
     chat_memory.clear_session(session_id)
+    agent_manager.clear_session(session_id)
     logger.info("[Session ID: %s] Chat history cleared", session_id)
 
     return {"status": "cleared", "session_id": session_id}
