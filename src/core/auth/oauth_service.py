@@ -314,7 +314,8 @@ class OAuthService:
             self._store.save_client_registration(session_id, provider, preconfigured)
             return preconfigured
 
-        # Atlassian MCP requires tokens issued via its DCR-backed OAuth pipeline.
+        # Atlassian MCP OAuth/DCR flow was derived from:
+        # https://benjamin-fuqua.medium.com/why-your-custom-oauth-tokens-fail-with-the-atlassian-mcp-server-and-how-dcr-fixes-it-2566b779f795
         # Prefer DCR and only allow static app credentials if explicitly enabled.
         if provider == OAuthProvider.ATLASSIAN:
             dcr_endpoint = metadata.get("registration_endpoint")
