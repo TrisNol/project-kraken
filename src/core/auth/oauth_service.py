@@ -60,6 +60,10 @@ class OAuthService:
     def has_fallback_access_token(self, provider: OAuthProvider) -> bool:
         return bool(self._fallback_access_tokens.get(provider))
 
+    def get_fallback_access_tokens(self) -> dict[OAuthProvider, str]:
+        """Get all fallback access tokens."""
+        return dict(self._fallback_access_tokens)
+
     def has_session_access_token(self, session_id: str, provider: OAuthProvider) -> bool:
         return self._store.get_token(session_id, provider) is not None
 

@@ -1,15 +1,16 @@
 import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ChatService, ChatMessage, ProviderStatus } from './chat.service';
+import { ChatService, ChatMessage, ProviderStatus, ChatMode, MCPAuthType } from './chat.service';
 import { MarkdownComponent } from 'ngx-markdown';
 import { MultiSelectModule } from 'primeng/multiselect';
+import { SelectModule } from 'primeng/select';
 import { PopoverModule } from 'primeng/popover';
 
 @Component({
     selector: 'app-chat',
     templateUrl: './chat.component.html',
     styleUrls: ['./chat.component.scss'],
-    imports: [FormsModule, MarkdownComponent, MultiSelectModule, PopoverModule],
+    imports: [FormsModule, MarkdownComponent, MultiSelectModule, SelectModule, PopoverModule],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ChatComponent {
@@ -28,12 +29,29 @@ export class ChatComponent {
         atlassian: 'none',
     });
 
-    // Sources multi-select (settings)
+    // Chat mode selection
+    chatMode = signal<ChatMode>('mcp');
+    mcpAuthType = signal<MCPAuthType>('oauth');
+
+    // Sources multi-select (settings) - allows multiple selections
     selectedSources: string[] = ['JIRA', 'CONFLUENCE', 'GITHUB'];
+    // Multi-select options for knowledge sources
     sourceOptions = [
         { label: 'Jira', value: 'JIRA' },
         { label: 'Confluence', value: 'CONFLUENCE' },
         { label: 'GitHub', value: 'GITHUB' }
+    ];
+
+    // Single-select options for chat mode
+    chatModeOptions = [
+        { label: 'RAG (Knowledge Base)', value: 'rag' as ChatMode },
+        { label: 'MCP (External Tools)', value: 'mcp' as ChatMode }
+    ];
+
+    // Single-select options for MCP authentication
+    mcpAuthTypeOptions = [
+        { label: 'OAuth', value: 'oauth' as MCPAuthType },
+        { label: 'Service Credentials', value: 'service_credentials' as MCPAuthType }
     ];
 
     // Auto-scroll effect on new messages
@@ -134,7 +152,12 @@ export class ChatComponent {
 
         this.isThinking.set(true);
         try {
-            const ans = await this.chat.ask(text, this.selectedSources);
+            const ans = await this.chat.ask(
+                text,
+                this.selectedSources,
+                this.chatMode(),
+                this.mcpAuthType()
+            );
             const assistantMsg: ChatMessage = {
                 id: crypto.randomUUID(),
                 role: 'assistant',

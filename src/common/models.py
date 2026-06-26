@@ -7,6 +7,16 @@ class DocumentSourceType(str, Enum):
     CONFLUENCE = "CONFLUENCE"
     GITHUB = "GITHUB"
 
+class ChatMode(str, Enum):
+    """Chat mode selection: RAG (knowledge graph) or MCP (external tools)"""
+    RAG = "rag"
+    MCP = "mcp"
+
+class MCPAuthType(str, Enum):
+    """Authentication type for MCP mode"""
+    OAUTH = "oauth"
+    SERVICE_CREDENTIALS = "service_credentials"
+
 class BaseMetadata(BaseModel):
     source: str = Field(..., description="Source of the document")
     type: DocumentSourceType = Field(..., description="Type of the document source")

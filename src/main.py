@@ -54,6 +54,9 @@ async def lifespan(app: FastAPI):
         oauth_service=oauth_service,
         llm_generator_factory=container.llm_generator,
         is_dev=container.config.app.environment() == "development",
+        rag_search=container.rag_search(),
+        graph_query=container.graph_query(),
+        fetch_neighbors=container.fetch_neighbors(),
     )
 
     yield

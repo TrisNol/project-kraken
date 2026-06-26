@@ -3,6 +3,9 @@ import { environment } from '../../environments/environment';
 
 export type ChatRole = 'user' | 'assistant';
 
+export type ChatMode = 'rag' | 'mcp';
+export type MCPAuthType = 'oauth' | 'service_credentials';
+
 export interface ChatReference {
   title: string;
   url: string;
@@ -211,11 +214,21 @@ export class ChatService {
     }
   }
 
-  async ask(prompt: string, sources: string[]): Promise<Omit<ChatMessage, 'id' | 'role' | 'createdAt'>> {
-  const url = `${this.apiBase}/ask`;
+  async ask(
+    prompt: string,
+    sources: string[],
+    chatMode: ChatMode = 'mcp',
+    mcpAuthType: MCPAuthType = 'oauth'
+  ): Promise<Omit<ChatMessage, 'id' | 'role' | 'createdAt'>> {
+    const url = `${this.apiBase}/ask`;
 
     try {
-      const payload = { question: prompt, sources };
+      const payload = { 
+        question: prompt, 
+        sources,
+        chat_mode: chatMode,
+        mcp_auth_type: mcpAuthType,
+      };
 
       const res = await fetch(url, {
         method: 'POST',
