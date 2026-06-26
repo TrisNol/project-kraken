@@ -1,4 +1,4 @@
-import { Component, signal, inject, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal, inject, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { SettingsService } from './settings.service';
@@ -13,6 +13,7 @@ interface ConfigSection {
   selector: 'app-settings',
   templateUrl: './settings.component.html',
   styleUrls: ['./settings.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ButtonModule]
 })
 export class SettingsComponent {

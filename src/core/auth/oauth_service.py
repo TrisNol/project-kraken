@@ -213,7 +213,7 @@ class OAuthService:
     async def get_valid_access_token(self, session_id: str, provider: OAuthProvider) -> str | None:
         token = self._store.get_token(session_id, provider)
         if not token:
-            return self._fallback_access_tokens.get(provider)
+            return None
 
         if self._is_expiring(token):
             refreshed = await self._refresh_token(session_id, provider, token)
