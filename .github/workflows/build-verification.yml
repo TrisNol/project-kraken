@@ -133,12 +133,14 @@ jobs:
     steps:
       - name: Check build status
         run: |
-          echo "### Build Verification Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Python Backend | ${{ needs.python-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Angular Frontend | ${{ needs.angular-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### Build Verification Results"
+            echo ""
+            echo "| Component | Status |"
+            echo "|-----------|--------|"
+            echo "| Python Backend | ${{ needs.python-build.result }} |"
+            echo "| Angular Frontend | ${{ needs.angular-build.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if any build failed
         if: |
