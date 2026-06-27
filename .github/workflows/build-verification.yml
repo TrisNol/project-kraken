@@ -93,7 +93,7 @@ jobs:
       - name: Run ESLint
         working-directory: frontend
         run: |
-          npx eslint src --ext .ts,.html 2>&1 || echo "Linting warnings detected (non-blocking)"
+          npx eslint src --ext .ts,.html
 
       - name: Run Prettier format check
         working-directory: frontend
