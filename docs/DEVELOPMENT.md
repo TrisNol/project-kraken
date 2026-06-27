@@ -8,12 +8,14 @@ This repository uses Ruff as the single source of truth for Python linting,
 import ordering, and formatting.
 
 1. Install hooks:
-
-	 poetry run pre-commit install
+    ```
+	poetry run pre-commit install
+    ```
 
 2. Run checks across the repository:
-
-	 poetry run pre-commit run --all-files
+    ```
+	poetry run pre-commit run --all-files
+    ```
 
 3. In VS Code, Python files are formatted on save with Ruff and use Ruff code
 	 actions for auto-fixes and import organization.
