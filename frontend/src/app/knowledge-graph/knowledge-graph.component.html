@@ -35,19 +35,19 @@
         </f-background>
         <f-canvas>
             @for (edge of edges(); track edge.source + edge.target) {
-            <f-connection 
-                [fOutputId]="edge.source" 
+            <f-connection
+                [fOutputId]="edge.source"
                 [fInputId]="edge.target"
                 fConnectionBehavior="bezier"></f-connection>
             }
 
             @for (node of nodes(); track node.id; let i = $index) {
-            <app-knowledge-graph-node 
-                fNode 
-                fDragHandle 
-                fNodeOutput 
+            <app-knowledge-graph-node
+                fNode
+                fDragHandle
+                fNodeOutput
                 fNodeInput
-                [fNodePosition]="getNodePosition(i)" 
+                [fNodePosition]="getNodePosition(i)"
                 [fOutputId]="node.id"
                 [fInputId]="node.id"
                 fOutputConnectableSide="right"

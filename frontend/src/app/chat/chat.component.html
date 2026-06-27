@@ -74,13 +74,13 @@
                 <!-- Chat Mode Selection -->
                 <div class="setting-group">
                     <label for="chatMode">Chat Mode</label>
-                    <p-select 
+                    <p-select
                         id="chatMode"
-                        [options]="chatModeOptions" 
+                        [options]="chatModeOptions"
                         [ngModel]="chatMode()"
                         (ngModelChange)="chatMode.set($event)"
                         [ngModelOptions]="{standalone: true}"
-                        optionLabel="label" 
+                        optionLabel="label"
                         optionValue="value"
                         placeholder="Select chat mode"
                         >
@@ -91,13 +91,13 @@
                 @if (chatMode() === 'mcp') {
                 <div class="setting-group">
                     <label for="mcpAuthType">MCP Authentication</label>
-                    <p-select 
+                    <p-select
                         id="mcpAuthType"
-                        [options]="mcpAuthTypeOptions" 
+                        [options]="mcpAuthTypeOptions"
                         [ngModel]="mcpAuthType()"
                         (ngModelChange)="mcpAuthType.set($event)"
                         [ngModelOptions]="{standalone: true}"
-                        optionLabel="label" 
+                        optionLabel="label"
                         optionValue="value"
                         placeholder="Select auth type"
                         >
@@ -108,13 +108,13 @@
                 <!-- Sources Selection -->
                 <div class="setting-group">
                     <label for="sources">Knowledge Sources</label>
-                    <p-multiSelect 
+                    <p-multiSelect
                         id="sources"
-                        [options]="sourceOptions" 
-                        [(ngModel)]="selectedSources" 
+                        [options]="sourceOptions"
+                        [(ngModel)]="selectedSources"
                         name="sources"
-                        [ngModelOptions]="{standalone: true}" 
-                        optionLabel="label" 
+                        [ngModelOptions]="{standalone: true}"
+                        optionLabel="label"
                         optionValue="value"
                         placeholder="Select sources">
                     </p-multiSelect>

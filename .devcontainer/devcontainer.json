@@ -8,12 +8,13 @@
                 "ms-python.python",
                 "ms-python.isort",
                 "ms-python.vscode-pylance",
-                "ms-python.black-formatter",
                 "njpwerner.autodocstring",
                 "bierner.markdown-mermaid",
                 "github.copilot-chat",
                 "ms-azuretools.vscode-docker",
-                "tamasfe.even-better-toml"
+                "tamasfe.even-better-toml",
+                "redhat.vscode-yaml",
+                "charliermarsh.ruff"
             ]
         }
     },

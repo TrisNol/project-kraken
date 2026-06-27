@@ -64,7 +64,7 @@ export class ChatComponent {
                 if (el) el.scrollTop = el.scrollHeight;
             });
         });
-        
+
         // Load chat history on initialization
         this.loadChatHistory();
         this.loadProviderStatus();

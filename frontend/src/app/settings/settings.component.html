@@ -3,14 +3,14 @@
 
   <div class="config-section">
     <h3>Configuration</h3>
-    
+
     @if (configLoading()) {
       <div class="loading">Loading configuration...</div>
     }
     @if (configError()) {
       <div class="error">{{ configError() }}</div>
     }
-    
+
     @if (config()) {
       <div class="config-items">
         @for (section of config() | keyvalue; track section.key) {
@@ -24,7 +24,7 @@
                 <span class="badge production">Production</span>
               }
             </div>
-            
+
             <div class="group-items">
               @for (item of getSectionEntries(section.value); track item[0]) {
                 <div class="config-item">
