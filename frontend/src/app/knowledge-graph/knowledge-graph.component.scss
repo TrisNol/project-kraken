@@ -8,7 +8,7 @@
         padding: 1rem 1.5rem;
         background: var(--background-color);
         border-bottom: 1px solid rgba(60, 60, 67, 0.12);
-        
+
         h2 {
             margin: 0 0 0.5rem 0;
             font-size: 1.25rem;
@@ -22,14 +22,14 @@
         gap: 1.5rem;
         align-items: center;
         flex-wrap: wrap;
-        
+
         .stat {
             display: flex;
             align-items: center;
             gap: 0.25rem;
             font-size: 0.875rem;
             color: rgba(60, 60, 67, 0.7);
-            
+
             strong {
                 color: var(--text-primary-color);
                 font-weight: 600;
@@ -46,7 +46,7 @@
             .stat-item {
                 font-size: 0.75rem;
                 color: rgba(60, 60, 67, 0.6);
-                
+
                 strong {
                     color: var(--text-primary-color);
                     font-weight: 600;

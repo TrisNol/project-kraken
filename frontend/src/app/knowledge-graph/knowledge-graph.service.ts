@@ -74,7 +74,7 @@ export class KnowledgeGraphService {
       }
 
       const data = (await res.json()) as GraphResponse;
-      
+
       // Add iconUrl to each node
       data.nodes = data.nodes.map(node => ({
         ...node,
@@ -130,7 +130,7 @@ export class KnowledgeGraphService {
       }
 
       const data = (await res.json()) as GraphResponse;
-      
+
       // Add iconUrl to each node
       data.nodes = data.nodes.map(node => ({
         ...node,

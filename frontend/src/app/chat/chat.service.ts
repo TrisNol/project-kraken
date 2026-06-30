@@ -87,7 +87,7 @@ export class ChatService {
       }
 
       const data = (await res.json()) as ChatHistoryResponse;
-      
+
       // Convert backend format to frontend ChatMessage format
       return data.messages.map((msg) => {
         const message: ChatMessage = {
@@ -96,7 +96,7 @@ export class ChatService {
           content: msg.content,
           createdAt: new Date(msg.timestamp),
         };
-        
+
         // Convert sources to refs if present
         if (msg.sources && msg.sources.length > 0) {
           message.refs = msg.sources.map((doc): ChatReference => {
@@ -109,7 +109,7 @@ export class ChatService {
               const ref = doc.ref || 'main';
               url = `https://github.com/${doc.repo_name}/blob/${encodeURIComponent(ref)}/${doc.file_path}`;
             }
-            
+
             let title: string;
             switch (doc.type) {
               case 'JIRA':
@@ -132,11 +132,11 @@ export class ChatService {
               default:
                 title = doc.type ?? 'Document';
             }
-            
+
             return { title, url: url || '#', icon, iconUrl };
           });
         }
-        
+
         return message;
       });
     } catch (err) {
@@ -223,8 +223,8 @@ export class ChatService {
     const url = `${this.apiBase}/ask`;
 
     try {
-      const payload = { 
-        question: prompt, 
+      const payload = {
+        question: prompt,
         sources,
         chat_mode: chatMode,
         mcp_auth_type: mcpAuthType,
@@ -275,7 +275,7 @@ export class ChatService {
           const ref = doc.ref || 'main';
           url = `https://github.com/${doc.repo_name}/blob/${encodeURIComponent(ref)}/${doc.file_path}`;
         }
-        
+
         let title: string;
         switch (doc.type) {
           case 'JIRA':
