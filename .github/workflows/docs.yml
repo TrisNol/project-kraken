@@ -18,7 +18,7 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.x
+          python-version: '3.12'
       - run: pip install poetry
       - run: poetry install --only docs
       - name: 📄 Copy doc files
