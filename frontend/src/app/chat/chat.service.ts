@@ -3,6 +3,9 @@ import { environment } from '../../environments/environment';
 
 export type ChatRole = 'user' | 'assistant';
 
+export type ChatMode = 'rag' | 'mcp';
+export type MCPAuthType = 'oauth' | 'service_credentials';
+
 export interface ChatReference {
   title: string;
   url: string;
@@ -46,6 +49,19 @@ export interface ChatHistoryResponse {
       ref?: string;
     }>;
   }>;
+}
+
+export interface ProviderStatus {
+  provider: 'github' | 'atlassian';
+  connected: boolean;
+  connection_type?: 'oauth' | 'fallback' | 'none';
+  expires_at?: string | null;
+  scope?: string | null;
+}
+
+export interface AuthMeResponse {
+  session_id: string;
+  providers: ProviderStatus[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -149,11 +165,70 @@ export class ChatService {
     }
   }
 
-  async ask(prompt: string, sources: string[]): Promise<Omit<ChatMessage, 'id' | 'role' | 'createdAt'>> {
-  const url = `${this.apiBase}/ask`;
+  async getAuthStatus(): Promise<ProviderStatus[]> {
+    const url = `${this.apiBase}/auth/me`;
 
     try {
-      const payload = { question: prompt, sources };
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        console.warn(`Failed to fetch auth status: ${res.status}`);
+        return [];
+      }
+
+      const data = (await res.json()) as AuthMeResponse;
+      return data.providers ?? [];
+    } catch (err) {
+      console.error('Error fetching auth status:', err);
+      return [];
+    }
+  }
+
+  connectProvider(provider: ProviderStatus['provider'], mode?: 'oauth'): void {
+    const query = mode ? `?mode=${encodeURIComponent(mode)}` : '';
+    const connectUrl = `${this.apiBase}/auth/${provider}/connect${query}`;
+    window.location.assign(connectUrl);
+  }
+
+  async disconnectProvider(provider: ProviderStatus['provider']): Promise<boolean> {
+    const url = `${this.apiBase}/auth/${provider}/disconnect`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+      return res.ok;
+    } catch (err) {
+      console.error(`Error disconnecting provider ${provider}:`, err);
+      return false;
+    }
+  }
+
+  async ask(
+    prompt: string,
+    sources: string[],
+    chatMode: ChatMode = 'mcp',
+    mcpAuthType: MCPAuthType = 'oauth'
+  ): Promise<Omit<ChatMessage, 'id' | 'role' | 'createdAt'>> {
+    const url = `${this.apiBase}/ask`;
+
+    try {
+      const payload = { 
+        question: prompt, 
+        sources,
+        chat_mode: chatMode,
+        mcp_auth_type: mcpAuthType,
+      };
 
       const res = await fetch(url, {
         method: 'POST',

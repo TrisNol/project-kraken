@@ -34,6 +34,7 @@
     "@foblex/platform": "^1.0.4",
     "@foblex/utils": "^1.1.1",
     "@primeuix/themes": "^2.0.3",
+    "mermaid": "^11.14.0",
     "ngx-markdown": "^21.1.0",
     "primeicons": "^7.0.0",
     "primeng": "^21.1.3",

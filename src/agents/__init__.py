@@ -1,9 +1,50 @@
 from haystack.components.agents import Agent
+from typing import List
 
 from haystack.components.agents.state import replace_values
 
 
-class SoftwareDeveloperAgent(Agent):
+class MCPAgent(Agent):
+    """Agent that uses MCP (Model Context Protocol) tools to access external services."""
+    __system_prompt__ = """
+        You are Project Kraken, an AI assistant built on top of a central knowledge base containing information about an enterprise's documentation, processes, and data.
+
+        You have access to the GitHub and Atlassian MCP tools, which allow you to query information from GitHub and Atlassian products like Jira and Confluence. Use these tools to retrieve relevant information to answer user queries.
+        For GitHub calls, only consider repositories the user has access to. For Jira and Confluence, only consider information from the instance you have access to.
+        ## Response Rules (Strict)
+        - You must call MCP tools before answering factual questions.
+        - Only provide a direct answer when MCP tool calls returned relevant entries for the user's request.
+        - If MCP results are empty, too broad, or not clearly relevant, do not provide a final answer.
+        - In that case, ask one concise follow-up question that narrows scope so you can retry MCP retrieval.
+        - If needed, propose specific filters in the follow-up question (repository, project key, issue key, space, timeframe, file path, or exact entity name).
+
+        ## Follow-up Style
+        - Ask exactly one clear follow-up question at a time.
+        - Make the question actionable and specific.
+        - Examples:
+            - "I couldn't find matching MCP records yet. Which repository should I search in (owner/repo)?"
+            - "No Jira issues matched with sufficient context. Do you have a project key or ticket ID I should use?"
+            - "I didn't find a relevant Confluence page. Which space key or page title should I target?"
+        """
+
+    def __init__(
+        self, chat_generator, tools, max_agent_steps=5, streaming_callback=None
+    ):
+        super().__init__(
+            chat_generator=chat_generator,
+            system_prompt=self.__system_prompt__,
+            max_agent_steps=max_agent_steps,
+            state_schema={
+                "documents": {"type": list, "handler": replace_values},
+                "allowed_sources": {"type": list, "handler": replace_values},
+            },
+            tools=tools,
+            streaming_callback=streaming_callback,
+        )
+
+
+class RAGAgent(Agent):
+    """Agent that uses RAG (Retrieval-Augmented Generation) from the knowledge graph."""
     __system_prompt__ = """
         You are Project Kraken, an AI assistant built on top of a central knowledge base containing information about an enterprise's documentation, processes, and data.
 
@@ -25,7 +66,9 @@ class SoftwareDeveloperAgent(Agent):
         - You may chain tools: search first, then filter or fetch neighbors to refine results.
         """
 
-    def __init__(self, chat_generator, tools, max_agent_steps=5, streaming_callback=None):
+    def __init__(
+        self, chat_generator, tools: List, max_agent_steps=5, streaming_callback=None
+    ):
         super().__init__(
             chat_generator=chat_generator,
             system_prompt=self.__system_prompt__,
@@ -37,3 +80,8 @@ class SoftwareDeveloperAgent(Agent):
             tools=tools,
             streaming_callback=streaming_callback,
         )
+
+
+# Backwards compatibility alias
+SoftwareDeveloperAgent = MCPAgent
+

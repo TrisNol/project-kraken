@@ -31,6 +31,7 @@
               "node_modules/prismjs/themes/prism-okaidia.css"
             ],
             "scripts": [
+              "node_modules/mermaid/dist/mermaid.min.js",
               "node_modules/prismjs/prism.js",
               "node_modules/prismjs/components/prism-csharp.min.js",
               "node_modules/prismjs/components/prism-css.min.js",

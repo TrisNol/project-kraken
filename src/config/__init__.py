@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from dependency_injector import containers, providers
 
+from src.core.auth.models import OAuthClientRegistration, OAuthProvider
 from src.core.atlassian.confluence_loader import ConfluenceLoader
 from src.core.atlassian.jira_loader import JiraLoader
 from src.core.chunk_retriever import ChunkRetriever
@@ -26,6 +27,45 @@ def _comma_separated_values_env(key: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def build_fallback_access_tokens_from_env() -> dict[OAuthProvider, str]:
+    result: dict[OAuthProvider, str] = {}
+
+    github_token = (
+        os.getenv("GITHUB_SERVICE_ACCESS_TOKEN")
+        or os.getenv("GITHUB_ACCESS_TOKEN")
+        or os.getenv("MCP_GITHUB_ACCESS_TOKEN")
+    )
+    if github_token:
+        result[OAuthProvider.GITHUB] = github_token
+
+    atlassian_token = (
+        os.getenv("ATLASSIAN_SERVICE_ACCESS_TOKEN")
+        or os.getenv("ATLASSIAN_ACCESS_TOKEN")
+        or os.getenv("MCP_ATLASSIAN_ACCESS_TOKEN")
+    )
+    if atlassian_token:
+        result[OAuthProvider.ATLASSIAN] = atlassian_token
+
+    return result
+
+
+def build_preconfigured_clients_from_env() -> dict[OAuthProvider, OAuthClientRegistration]:
+    clients: dict[OAuthProvider, OAuthClientRegistration] = {}
+
+    github_client_id = os.getenv("GITHUB_OAUTH_CLIENT_ID") or os.getenv("GITHUB_APP_CLIENT_ID")
+    github_client_secret = os.getenv("GITHUB_OAUTH_CLIENT_SECRET") or os.getenv(
+        "GITHUB_APP_CLIENT_SECRET"
+    )
+    if github_client_id and github_client_secret:
+        clients[OAuthProvider.GITHUB] = OAuthClientRegistration(
+            client_id=github_client_id,
+            client_secret=github_client_secret,
+            token_endpoint_auth_method="client_secret_post",
+        )
+
+    return clients
+
+
 def load_env_config() -> dict:
     """Load all runtime settings from environment in one place."""
     load_dotenv()
@@ -36,6 +76,10 @@ def load_env_config() -> dict:
         "app": {
             "environment": os.getenv("ENV", "production"),
             "port": int(os.getenv("PORT", 8000)),
+        },
+        "auth": {
+            "frontend_base_url": os.getenv("AUTH_FRONTEND_BASE_URL", "http://localhost:4200"),
+            "backend_base_url": os.getenv("AUTH_BACKEND_BASE_URL", "http://localhost:8000"),
         },
         "jira": {
             "url": os.getenv("JIRA_URL"),
@@ -72,6 +116,25 @@ def load_env_config() -> dict:
             "embedding_model": os.getenv("LLM_EMBEDDING_MODEL"),
             "host": os.getenv("LLM_HOST"),
             "openai_api_key": os.getenv("OPENAI_API_KEY"),
+            "azure_deployment_name": os.getenv("AZURE_DEPLOYMENT_NAME"),
+            "azure_openai_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+            "azure_openai_api_key": os.getenv("AZURE_OPENAI_API_KEY"),
+            "azure_openai_api_version": os.getenv("AZURE_OPENAI_API_VERSION"),
+        },
+        "oauth": {
+            "github_authorization_server": os.getenv(
+                "GITHUB_OAUTH_AUTHORIZATION_SERVER",
+                "https://github.com/login/oauth",
+            ),
+            "atlassian_authorization_server": os.getenv(
+                "ATLASSIAN_OAUTH_AUTHORIZATION_SERVER",
+                "https://mcp.atlassian.com",
+            ),
+            "github_scope": os.getenv("GITHUB_OAUTH_SCOPE", "read:user repo"),
+            "atlassian_scope": os.getenv(
+                "ATLASSIAN_OAUTH_SCOPE",
+                "offline_access read:confluence-user read:jira-work read:me search:confluence",
+            ),
         },
     }
 
@@ -140,6 +203,9 @@ class AppContainer(containers.DeclarativeContainer):
         model=config.llm.chat_model,
         host=config.llm.host,
         openai_api_key=config.llm.openai_api_key,
+        azure_deployment_name=config.llm.azure_deployment_name,
+        azure_openai_endpoint=config.llm.azure_openai_endpoint,
+        azure_openai_api_key=config.llm.azure_openai_api_key,
     )
     document_embedder = providers.Factory(
         create_document_embedder,
@@ -147,6 +213,9 @@ class AppContainer(containers.DeclarativeContainer):
         model=config.llm.embedding_model,
         host=config.llm.host,
         openai_api_key=config.llm.openai_api_key,
+        azure_openai_endpoint=config.llm.azure_openai_endpoint,
+        azure_openai_api_key=config.llm.azure_openai_api_key,
+        azure_openai_api_version=config.llm.azure_openai_api_version,
         embedding_dimension=config.embedding.dimension,
     )
     text_embedder = providers.Factory(
@@ -155,6 +224,9 @@ class AppContainer(containers.DeclarativeContainer):
         model=config.llm.embedding_model,
         host=config.llm.host,
         openai_api_key=config.llm.openai_api_key,
+        azure_openai_endpoint=config.llm.azure_openai_endpoint,
+        azure_openai_api_key=config.llm.azure_openai_api_key,
+        azure_openai_api_version=config.llm.azure_openai_api_version,
         embedding_dimension=config.embedding.dimension,
     )
 
